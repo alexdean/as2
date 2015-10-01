@@ -1,6 +1,6 @@
 require 'net/http'
 
-module AS2
+module As2
   class Client
     def initialize(partner_name)
       @partner = Config.partners[partner_name]

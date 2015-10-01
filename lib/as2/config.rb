@@ -1,5 +1,5 @@
 require 'uri'
-module AS2
+module As2
   module Config
     class Partner < Struct.new :name, :url, :certificate
       def url=(url)

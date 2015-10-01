@@ -1,7 +1,7 @@
 require 'as2'
 require 'rack'
 
-AS2.configure do |conf|
+As2.configure do |conf|
   conf.name = 'MyName'
   conf.url = 'http://localhost:3000/as2'
   conf.certificate = 'server.crt'
@@ -14,7 +14,7 @@ AS2.configure do |conf|
   end
 end
 
-handler = AS2::Server.new do |filename, body|
+handler = As2::Server.new do |filename, body|
   puts "SUCCESSFUL DOWNLOAD"
   puts "FILENAME: #{filename}"
   puts

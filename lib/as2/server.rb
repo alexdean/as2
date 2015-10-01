@@ -2,7 +2,7 @@ require 'rack'
 require 'logger'
 require 'stringio'
 
-module AS2
+module As2
   class MimeGenerator
     class Part
       def initialize
