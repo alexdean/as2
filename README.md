@@ -22,7 +22,13 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+Generate self signed server certificate:
+
+1. Generate a key ` openssl genrsa -des3 -out server.key 1024 `
+2. Copy the protected key ` cp server.key server.key.org `
+3. Remove the passphrase ` openssl rsa -in server.key.org -out server.key `
+4. Generate signing request ` openssl req -new -key server.key -out server.csr `
+5. Sign the request with your key ` openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt `
 
 ## Development
 
