@@ -1,8 +1,8 @@
 # As2
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/as2`. To experiment with that code, run `bin/console` for an interactive prompt.
+This is a proof of concept implementation of AS2 protocol: http://www.ietf.org/rfc/rfc4130.txt.
 
-TODO: Delete this and the text above, and describe your gem
+Tested with the mendelson AS2 implementation from http://as2.mendelson-e-c.com
 
 ## Installation
 
