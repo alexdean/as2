@@ -1,7 +1,7 @@
 require 'as2'
-require 'pry'
+# require 'pry'
 
-AS2.configure do |conf|
+As2.configure do |conf|
   conf.name = 'MyName'
   conf.url = 'http://localhost:3000/as2'
   conf.certificate = 'server.crt'
@@ -14,6 +14,6 @@ AS2.configure do |conf|
   end
 end
 
-client = AS2::Client.new 'mycompanyAS2'
+client = As2::Client.new 'mycompanyAS2'
 result = client.send_file(ARGV.first)
 p result
