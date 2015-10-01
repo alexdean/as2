@@ -99,15 +99,19 @@ module As2
         return send_error(env, "Invalid partner name #{env['HTTP_AS2_FROM']}")
       end
 
+      request = Rack::Request.new(env)
       smime_data = StringIO.new
       HEADER_MAP.each do |name, value|
         smime_data.puts "#{name}: #{env[value]}"
       end
       smime_data.puts 'Content-Transfer-Encoding: base64'
       smime_data.puts
-      smime_data.puts [env['rack.input'].read].pack('m*')
+      smime_data.puts request.body.read
 
       smime = OpenSSL::PKCS7.read_smime(smime_data.string)
+      request = Rack::Request.new(env)
+      smime_data = request.body.read
+      puts smime_data
       smime_decrypted = smime.decrypt @info.pkey, @info.certificate
       smime = OpenSSL::PKCS7.read_smime smime_decrypted
       smime.verify [partner.certificate], Config.store
