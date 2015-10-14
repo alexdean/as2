@@ -110,10 +110,8 @@ module As2
       smime_data.puts ensure_base64(request.body.read)
 
       smime = OpenSSL::PKCS7.read_smime(smime_data.string)
-      request = Rack::Request.new(env)
-      smime_data = request.body.read
-      puts smime_data
       smime_decrypted = smime.decrypt @info.pkey, @info.certificate
+      smime_decrypted = ensure_body_base64(smime_decrypted)
       smime = OpenSSL::PKCS7.read_smime smime_decrypted
       smime.verify [partner.certificate], Config.store
 
@@ -146,6 +144,24 @@ module As2
       rescue ArgumentError
         # The string is not yet base64 encoded
         return Base64.encode64(string)
+      end
+    end
+
+    def ensure_body_base64(multipart)
+      boundary = multipart.scan(/boundary="([^"]*)"/)[0][0]
+      boundary_split = Regexp.escape("--#{boundary}")
+      parts = multipart.split(/^#{boundary_split}-*\s*$/)
+      signature = parts[2]
+      transfer_encoding = signature.scan(/Content-Transfer-Encoding: (.*)/)[0][0].strip
+      if transfer_encoding == 'binary'
+        header, body = signature.split(/^\s*$/,2).map(&:lstrip)
+        body_base64 = Base64.encode64(body)
+        new_header = header.sub('Content-Transfer-Encoding: binary', 'Content-Transfer-Encoding: base64')
+        parts[2] = new_header + "\r\n" + body_base64
+        new_multipart = parts.join("--#{boundary}\r\n") + "--#{boundary}--\r\n"
+        return new_multipart
+      else
+        return multipart
       end
     end
 
