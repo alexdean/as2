@@ -1,6 +1,7 @@
 require 'rack'
 require 'logger'
 require 'stringio'
+require 'base64'
 
 module As2
   class MimeGenerator
@@ -66,7 +67,7 @@ module As2
 
       @@counter = 0
       def gen_id
-        @@counter += 1 
+        @@counter += 1
         @id = "#{@@counter}_#{Time.now.strftime('%Y%m%d%H%M%S%L')}"
       end
     end
@@ -106,7 +107,7 @@ module As2
       end
       smime_data.puts 'Content-Transfer-Encoding: base64'
       smime_data.puts
-      smime_data.puts request.body.read
+      smime_data.puts ensure_base64(request.body.read)
 
       smime = OpenSSL::PKCS7.read_smime(smime_data.string)
       request = Rack::Request.new(env)
@@ -136,6 +137,17 @@ module As2
     end
 
     private
+    # Will base64 encoded string, unless it already is base64 encoded
+    def ensure_base64(string)
+      begin
+        # If string is not base64 encoded, this will raise an ArgumentError
+        Base64.strict_decode64(string.strip)
+        return string
+      rescue ArgumentError
+        # The string is not yet base64 encoded
+        return Base64.encode64(string)
+      end
+    end
 
     def logger(env)
       @logger ||= Logger.new env['rack.errors']
