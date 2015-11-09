@@ -19,7 +19,6 @@ handler = As2::Server.new do |filename, body|
   puts "FILENAME: #{filename}"
   puts
   puts body
-  raise "Test error message" unless filename.end_with?('edi')
 end
 
 builder = Rack::Builder.new do
