@@ -1,8 +1,8 @@
 require 'rack'
 require 'logger'
 require 'stringio'
-require 'base64'
 require 'as2/mime_generator'
+require 'as2/base64_helper'
 
 module As2
   class Server
@@ -60,7 +60,7 @@ module As2
 
       smime_data.puts 'Content-Transfer-Encoding: base64'
       smime_data.puts
-      smime_data.puts ensure_base64(body)
+      smime_data.puts Base64Helper.ensure_base64(body)
 
       log[:smime_data_string] = smime_data.string
       return smime_data.string
@@ -76,7 +76,7 @@ module As2
     end
 
     def verify_signature(message, partner)
-      smime = ensure_body_base64(message)
+      smime = Base64Helper.ensure_body_base64(message)
       message = read_smime(smime)
       message.verify [partner.certificate], Config.store
     end
@@ -95,36 +95,6 @@ module As2
         rescue
           return send_error(env, $!.message)
         end
-      end
-    end
-
-    # Will base64 encoded string, unless it already is base64 encoded
-    def ensure_base64(string)
-      begin
-        # If string is not base64 encoded, this will raise an ArgumentError
-        Base64.strict_decode64(string.gsub("\n",""))
-        return string
-      rescue ArgumentError
-        # The string is not yet base64 encoded
-        return Base64.encode64(string)
-      end
-    end
-
-    def ensure_body_base64(multipart)
-      boundary = multipart.scan(/boundary="([^"]*)"/)[0][0]
-      boundary_split = Regexp.escape("--#{boundary}")
-      parts = multipart.split(/^#{boundary_split}-*\s*$/)
-      signature = parts[2]
-      transfer_encoding = signature.scan(/Content-Transfer-Encoding: (.*)/)[0][0].strip
-      if transfer_encoding == 'binary'
-        header, body = signature.split(/^\s*$/,2).map(&:lstrip)
-        body_base64 = Base64.encode64(body)
-        new_header = header.sub('Content-Transfer-Encoding: binary', 'Content-Transfer-Encoding: base64')
-        parts[2] = new_header + "\r\n" + body_base64
-        new_multipart = parts.join("--#{boundary}\r\n") + "--#{boundary}--\r\n"
-        return new_multipart
-      else
-        return multipart
       end
     end
 
