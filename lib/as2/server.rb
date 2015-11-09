@@ -108,20 +108,9 @@ module As2
       verified_message = verify_signature(message, partner)
 
       mic = OpenSSL::Digest::SHA1.base64digest(verified_message.data)
-      mail = Mail.new(verified_message.data)
 
-      part = if mail.has_attachments?
-               mail.attachments.find{|a| a.content_type == "application/edi-consent"}
-             else
-               mail
-             end
-      if @block
-        begin
-          @block.call part.filename, part.body
-        rescue
-          return send_error(env, $!.message)
-        end
-      end
+      handle_message(env, verified_message.data)
+
       send_mdn(env, mic)
     end
 
@@ -158,6 +147,23 @@ module As2
       smime = ensure_body_base64(message)
       message = read_smime(smime)
       message.verify [partner.certificate], Config.store
+    end
+
+    def handle_message(env, data)
+      mail = Mail.new(data)
+
+      part = if mail.has_attachments?
+               mail.attachments.find{|a| a.content_type == "application/edi-consent"}
+             else
+               mail
+             end
+      if @block
+        begin
+          @block.call part.filename, part.body
+        rescue
+          return send_error(env, $!.message)
+        end
+      end
     end
 
     # Will base64 encoded string, unless it already is base64 encoded
