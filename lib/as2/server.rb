@@ -95,29 +95,20 @@ module As2
         return send_error(env, "Invalid destination name #{env['HTTP_AS2_TO']}")
       end
 
+      log = {}
+
       partner = Config.partners[env['HTTP_AS2_FROM']]
       unless partner
         return send_error(env, "Invalid partner name #{env['HTTP_AS2_FROM']}")
       end
 
-      request = Rack::Request.new(env)
-      smime_data = StringIO.new
-      HEADER_MAP.each do |name, value|
-        smime_data.puts "#{name}: #{env[value]}"
-      end
-      smime_data.puts 'Content-Transfer-Encoding: base64'
-      smime_data.puts
-      smime_data.puts ensure_base64(request.body.read)
+      smime_string = build_smime_text(env, log)
 
-      smime = OpenSSL::PKCS7.read_smime(smime_data.string)
-      smime_decrypted = smime.decrypt @info.pkey, @info.certificate
-      smime_decrypted = ensure_body_base64(smime_decrypted)
-      smime = OpenSSL::PKCS7.read_smime smime_decrypted
-      smime.verify [partner.certificate], Config.store
+      message = decrypt_smime(smime_string)
+      verified_message = verify_signature(message, partner)
 
-      mic = OpenSSL::Digest::SHA1.base64digest(smime.data)
-
-      mail = Mail.new smime.data
+      mic = OpenSSL::Digest::SHA1.base64digest(verified_message.data)
+      mail = Mail.new(verified_message.data)
 
       part = if mail.has_attachments?
                mail.attachments.find{|a| a.content_type == "application/edi-consent"}
@@ -135,6 +126,40 @@ module As2
     end
 
     private
+    def build_smime_text(env, log)
+      request = Rack::Request.new(env)
+      smime_data = StringIO.new
+
+      HEADER_MAP.each do |name, value|
+        smime_data.puts "#{name}: #{env[value]}"
+      end
+
+      body = request.body.read
+      log[:body] = body
+
+      smime_data.puts 'Content-Transfer-Encoding: base64'
+      smime_data.puts
+      smime_data.puts ensure_base64(body)
+
+      log[:smime_data_string] = smime_data.string
+      return smime_data.string
+    end
+
+    def read_smime(smime)
+      OpenSSL::PKCS7.read_smime(smime)
+    end
+
+    def decrypt_smime(smime)
+      message = read_smime(smime)
+      message.decrypt @info.pkey, @info.certificate
+    end
+
+    def verify_signature(message, partner)
+      smime = ensure_body_base64(message)
+      message = read_smime(smime)
+      message.verify [partner.certificate], Config.store
+    end
+
     # Will base64 encoded string, unless it already is base64 encoded
     def ensure_base64(string)
       begin
