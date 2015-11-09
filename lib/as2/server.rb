@@ -18,7 +18,7 @@ module As2
 
     attr_accessor :logger
 
-    def initialize(&block, options = {})
+    def initialize(options = {}, &block)
       @block = block
       @info = Config.server_info
       @options = options
