@@ -2,7 +2,7 @@ require 'rack'
 require 'logger'
 require 'stringio'
 require 'base64'
-require './mime_generator.rb'
+require 'as2/mime_generator'
 
 module As2
   class Server
