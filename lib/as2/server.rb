@@ -1,78 +1,11 @@
 require 'rack'
 require 'logger'
 require 'stringio'
-require 'base64'
+require 'as2/mime_generator'
+require 'as2/base64_helper'
+require 'as2/message'
 
 module As2
-  class MimeGenerator
-    class Part
-      def initialize
-        @parts = []
-        @body = ""
-        @headers = {}
-      end
-
-      def [](name)
-        @headers[name]
-      end
-
-      def []=(name, value)
-        @headers[name] = value
-      end
-
-      def body
-        @body
-      end
-
-      def body=(body)
-        unless @parts.empty?
-          raise "Cannot add plain budy to multipart"
-        end
-        @body = body
-      end
-
-      def add_part(part)
-        gen_id unless @id
-        @parts << part
-        @body = nil
-      end
-
-      def multipart?
-        ! @parts.empty?
-      end
-
-      def write(io)
-        @headers.each do |name, value|
-          if multipart? && name =~ /content-type/i
-            io.print "#{name}: #{value}; \r\n"
-            io.print "\tboundary=\"----=_Part_#{@id}\"\r\n"
-          else
-            io.print "#{name}: #{value}\r\n"
-          end
-        end
-        io.print "\r\n"
-        if @parts.empty?
-          io.print @body, "\r\n"
-        else
-          @parts.each do|p|
-            io.print "------=_Part_#{@id}\r\n"
-            p.write(io)
-          end
-          io.print "------=_Part_#{@id}--\r\n"
-        end
-        io.print "\r\n"
-      end
-
-      private
-
-      @@counter = 0
-      def gen_id
-        @@counter += 1
-        @id = "#{@@counter}_#{Time.now.strftime('%Y%m%d%H%M%S%L')}"
-      end
-    end
-  end
-
   class Server
     HEADER_MAP = {
       'To' => 'HTTP_AS2_TO',
@@ -100,69 +33,39 @@ module As2
         return send_error(env, "Invalid partner name #{env['HTTP_AS2_FROM']}")
       end
 
-      request = Rack::Request.new(env)
-      smime_data = StringIO.new
-      HEADER_MAP.each do |name, value|
-        smime_data.puts "#{name}: #{env[value]}"
+      smime_string = build_smime_text(env)
+      message = Message.new(smime_string, @info.pkey, @info.certificate)
+      unless message.valid_signature?(partner.certificate)
+        # Log or raise?
       end
-      smime_data.puts 'Content-Transfer-Encoding: base64'
-      smime_data.puts
-      smime_data.puts ensure_base64(request.body.read)
 
-      smime = OpenSSL::PKCS7.read_smime(smime_data.string)
-      smime_decrypted = smime.decrypt @info.pkey, @info.certificate
-      smime_decrypted = ensure_body_base64(smime_decrypted)
-      smime = OpenSSL::PKCS7.read_smime smime_decrypted
-      smime.verify [partner.certificate], Config.store
+      mic = OpenSSL::Digest::SHA1.base64digest(message.decrypted_message)
 
-      mic = OpenSSL::Digest::SHA1.base64digest(smime.data)
-
-      mail = Mail.new smime.data
-
-      part = if mail.has_attachments?
-               mail.attachments.find{|a| a.content_type == "application/edi-consent"}
-             else
-               mail
-             end
       if @block
         begin
-          @block.call part.filename, part.body
-        rescue
-          return send_error(env, $!.message)
+          @block.call message.attachment.filename, message.attachment.body
+        rescue Exception => e
+          return send_error(env, e.message)
         end
       end
+
       send_mdn(env, mic)
     end
 
     private
-    # Will base64 encoded string, unless it already is base64 encoded
-    def ensure_base64(string)
-      begin
-        # If string is not base64 encoded, this will raise an ArgumentError
-        Base64.strict_decode64(string.strip)
-        return string
-      rescue ArgumentError
-        # The string is not yet base64 encoded
-        return Base64.encode64(string)
-      end
-    end
+    def build_smime_text(env)
+      request = Rack::Request.new(env)
+      smime_data = StringIO.new
 
-    def ensure_body_base64(multipart)
-      boundary = multipart.scan(/boundary="([^"]*)"/)[0][0]
-      boundary_split = Regexp.escape("--#{boundary}")
-      parts = multipart.split(/^#{boundary_split}-*\s*$/)
-      signature = parts[2]
-      transfer_encoding = signature.scan(/Content-Transfer-Encoding: (.*)/)[0][0].strip
-      if transfer_encoding == 'binary'
-        header, body = signature.split(/^\s*$/,2).map(&:lstrip)
-        body_base64 = Base64.encode64(body)
-        new_header = header.sub('Content-Transfer-Encoding: binary', 'Content-Transfer-Encoding: base64')
-        parts[2] = new_header + "\r\n" + body_base64
-        new_multipart = parts.join("--#{boundary}\r\n") + "--#{boundary}--\r\n"
-        return new_multipart
-      else
-        return multipart
+      HEADER_MAP.each do |name, value|
+        smime_data.puts "#{name}: #{env[value]}"
       end
+
+      smime_data.puts 'Content-Transfer-Encoding: base64'
+      smime_data.puts
+      smime_data.puts Base64Helper.ensure_base64(request.body.read)
+
+      return smime_data.string
     end
 
     def logger(env)
