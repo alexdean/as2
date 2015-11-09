@@ -35,7 +35,7 @@ module As2
 
       smime_string = build_smime_text(env)
       message = Message.new(smime_string, @info.pkey, @info.certificate)
-      unless message.valid_signature?(partner)
+      unless message.valid_signature?(partner.certificate)
         # Log or raise?
       end
 

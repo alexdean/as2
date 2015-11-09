@@ -14,13 +14,13 @@ module As2
       @decrypted_message ||= decrypt_smime(original_message)
     end
 
-    def valid_signature?(partner)
+    def valid_signature?(partner_certificate)
       store = OpenSSL::X509::Store.new
-      store.add_cert(partner.certificate)
+      store.add_cert(partner_certificate)
 
       smime = Base64Helper.ensure_body_base64(decrypted_message)
       message = read_smime(smime)
-      message.verify [partner.certificate], store
+      message.verify [partner_certificate], store
     end
 
     # Return the attached file, use .filename and .body on the return value
