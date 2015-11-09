@@ -1,3 +1,5 @@
+require 'as2/base64_helper'
+
 module As2
   class Message
     attr_reader :original_message

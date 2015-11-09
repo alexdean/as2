@@ -39,7 +39,7 @@ module As2
         # Log or raise?
       end
 
-      mic = OpenSSL::Digest::SHA1.base64digest(message)
+      mic = OpenSSL::Digest::SHA1.base64digest(message.decrypted_message)
 
       if @block
         begin

@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    as2 (0.1.0)
+    as2 (0.2.2)
       mail
       rack
 
