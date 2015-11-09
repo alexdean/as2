@@ -18,9 +18,10 @@ module As2
 
     attr_accessor :logger
 
-    def initialize(&block)
+    def initialize(&block, options = {})
       @block = block
       @info = Config.server_info
+      @options = options
     end
 
     def call(env)
@@ -36,7 +37,11 @@ module As2
       smime_string = build_smime_text(env)
       message = Message.new(smime_string, @info.pkey, @info.certificate)
       unless message.valid_signature?(partner.certificate)
-        # Log or raise?
+        if @options[:on_signature_failure]
+          @options[:on_signature_failure].call({env: env, smime_string: smime_string})
+        else
+          raise "Could not verify signature"
+        end
       end
 
       mic = OpenSSL::Digest::SHA1.base64digest(message.decrypted_message)
