@@ -3,6 +3,7 @@ require 'logger'
 require 'stringio'
 require 'as2/mime_generator'
 require 'as2/base64_helper'
+require 'as2/message'
 
 module As2
   class Server
@@ -27,27 +28,32 @@ module As2
         return send_error(env, "Invalid destination name #{env['HTTP_AS2_TO']}")
       end
 
-      log = {}
-
       partner = Config.partners[env['HTTP_AS2_FROM']]
       unless partner
         return send_error(env, "Invalid partner name #{env['HTTP_AS2_FROM']}")
       end
 
-      smime_string = build_smime_text(env, log)
+      smime_string = build_smime_text(env)
+      message = Message.new(smime_string, @info.pkey, @info.certificate)
+      unless message.valid_signature?(partner)
+        # Log or raise?
+      end
 
-      message = decrypt_smime(smime_string)
-      verified_message = verify_signature(message, partner)
+      mic = OpenSSL::Digest::SHA1.base64digest(message)
 
-      mic = OpenSSL::Digest::SHA1.base64digest(verified_message.data)
-
-      handle_message(env, verified_message.data)
+      if @block
+        begin
+          @block.call message.attachment.filename, message.attachment.body
+        rescue Exception => e
+          return send_error(env, e.message)
+        end
+      end
 
       send_mdn(env, mic)
     end
 
     private
-    def build_smime_text(env, log)
+    def build_smime_text(env)
       request = Rack::Request.new(env)
       smime_data = StringIO.new
 
@@ -55,47 +61,11 @@ module As2
         smime_data.puts "#{name}: #{env[value]}"
       end
 
-      body = request.body.read
-      log[:body] = body
-
       smime_data.puts 'Content-Transfer-Encoding: base64'
       smime_data.puts
-      smime_data.puts Base64Helper.ensure_base64(body)
+      smime_data.puts Base64Helper.ensure_base64(request.body.read)
 
-      log[:smime_data_string] = smime_data.string
       return smime_data.string
-    end
-
-    def read_smime(smime)
-      OpenSSL::PKCS7.read_smime(smime)
-    end
-
-    def decrypt_smime(smime)
-      message = read_smime(smime)
-      message.decrypt @info.pkey, @info.certificate
-    end
-
-    def verify_signature(message, partner)
-      smime = Base64Helper.ensure_body_base64(message)
-      message = read_smime(smime)
-      message.verify [partner.certificate], Config.store
-    end
-
-    def handle_message(env, data)
-      mail = Mail.new(data)
-
-      part = if mail.has_attachments?
-               mail.attachments.find{|a| a.content_type == "application/edi-consent"}
-             else
-               mail
-             end
-      if @block
-        begin
-          @block.call part.filename, part.body
-        rescue
-          return send_error(env, $!.message)
-        end
-      end
     end
 
     def logger(env)

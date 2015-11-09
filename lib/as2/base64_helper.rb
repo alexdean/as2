@@ -15,7 +15,7 @@ module As2
     end
   end
 
-  # If the multipart body is binary encoded, reqplce it with base64 encoded version
+  # If the multipart body is binary encoded, replace it with base64 encoded version
   def self.ensure_body_base64(multipart)
     boundary = multipart.scan(/boundary="([^"]*)"/)[0][0]
     boundary_split = Regexp.escape("--#{boundary}")
