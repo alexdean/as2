@@ -24,6 +24,12 @@ Or install it yourself as:
 
 Generate self signed server certificate:
 
+### One step
+
+`openssl req -x509 -newkey rsa:2048 -nodes -keyout server.key -out server.crt -days 365`
+
+### Multi step
+
 1. Generate a key ` openssl genrsa -des3 -out server.key 1024 `
 2. Copy the protected key ` cp server.key server.key.org `
 3. Remove the passphrase ` openssl rsa -in server.key.org -out server.key `
@@ -44,4 +50,3 @@ Bug reports and pull requests are welcome on GitHub at https://github.com/[USERN
 ## License
 
 The gem is available as open source under the terms of the [MIT License](http://opensource.org/licenses/MIT).
-
