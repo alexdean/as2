@@ -139,7 +139,7 @@ module As2
     def ensure_base64(string)
       begin
         # If string is not base64 encoded, this will raise an ArgumentError
-        Base64.strict_decode64(string.strip)
+        Base64.strict_decode64(string.gsub("\n",""))
         return string
       rescue ArgumentError
         # The string is not yet base64 encoded
