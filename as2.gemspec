@@ -6,12 +6,12 @@ require 'as2/version'
 Gem::Specification.new do |spec|
   spec.name          = "as2"
   spec.version       = As2::VERSION
-  spec.authors       = ["Andrew Fecheyr"]
-  spec.email         = ["andrew@bedesign.be"]
+  spec.authors       = ["OfficeLuv"]
+  spec.email         = ["development@officeluv.com"]
 
   spec.summary       = %q{Simple AS2 server and client implementation}
   spec.description   = %q{Simple AS2 server and client implementation. Follows the AS2 implementation from http://as2.mendelson-e-c.com}
-  spec.homepage      = "https://github.com/andruby/as2"
+  spec.homepage      = "https://github.com/officeluv/as2"
   spec.license       = "MIT"
 
   # Prevent pushing this gem to RubyGems.org by setting 'allowed_push_host', or
