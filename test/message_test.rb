@@ -1,13 +1,5 @@
 require 'test_helper'
 
-def private_key(path)
-    OpenSSL::PKey.read File.read(path)
-  end
-
-  def public_key(path)
-    OpenSSL::X509::Certificate.new File.read(path)
-  end
-
 describe As2::Message do
   before do
     server_key = private_key('test/certificates/server.key')

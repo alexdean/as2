@@ -1,6 +1,17 @@
 require 'uri'
 module As2
   module Config
+    def self.build_certificate(input)
+      if input.kind_of? OpenSSL::X509::Certificate
+        input
+      elsif input.kind_of? String
+        OpenSSL::X509::Certificate.new File.read(input)
+      else
+        raise ArgumentError, "Invalid certificate. Provide a string (file path)" \
+          " or an OpenSSL::X509::Certificate instance. Got a #{input.class} instead."
+      end
+    end
+
     class Partner < Struct.new :name, :url, :certificate
       def url=(url)
         if url.kind_of? String
@@ -11,7 +22,7 @@ module As2
       end
 
       def certificate=(certificate)
-        self['certificate'] = OpenSSL::X509::Certificate.new File.read(certificate)
+        self['certificate'] = As2::Config.build_certificate(certificate)
       end
     end
 
@@ -25,11 +36,20 @@ module As2
       end
 
       def certificate=(certificate)
-        self['certificate'] = OpenSSL::X509::Certificate.new File.read(certificate)
+        self['certificate'] = As2::Config.build_certificate(certificate)
       end
 
-      def pkey=(pkey)
-        self['pkey'] = OpenSSL::PKey.read File.read(pkey)
+      def pkey=(input)
+        # looks like even though you OpenSSL::PKey.new, you still end up with
+        # an instance which is an OpenSSL::PKey::PKey.
+        if input.kind_of? OpenSSL::PKey::PKey
+          self['pkey'] = input
+        elsif input.kind_of? String
+          self['pkey'] = OpenSSL::PKey.read File.read(input)
+        else
+          raise ArgumentError, "Invalid private key. Provide a string (file path)" \
+            " or an OpenSSL::PKey instance. Got a #{input.class} instead."
+        end
       end
 
       def add_partner
