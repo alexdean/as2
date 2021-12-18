@@ -21,11 +21,13 @@ describe As2::Message do
 
   describe '#valid_signature?' do
     it 'is true when message is signed properly' do
-      # this doesn't pass. unsure of cause. need to work on this more.
-      skip
-
       client_crt = public_key('test/certificates/client.crt')
       assert @message.valid_signature?(client_crt), "Invalid signature"
+    end
+
+    it 'is false when message was not signed by given cert' do
+      server_crt = public_key('test/certificates/server.crt')
+      assert !@message.valid_signature?(server_crt), "Signature should be invalid."
     end
   end
 
