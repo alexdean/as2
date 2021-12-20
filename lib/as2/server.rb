@@ -29,7 +29,11 @@ module As2
 
       unless message.valid_signature?(partner.certificate)
         if @options[:on_signature_failure]
-          @options[:on_signature_failure].call({env: env, smime_string: message.pkcs7.to_pem})
+          @options[:on_signature_failure].call({
+            env: env,
+            smime_string: message.decrypted_message,
+            verification_error: message.verification_error
+          })
         else
           raise "Could not verify signature"
         end

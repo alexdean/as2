@@ -1,12 +1,13 @@
 module As2
   class Message
-    attr_reader :pkcs7
+    attr_reader :verification_error
 
     def initialize(message, private_key, public_certificate)
       # TODO: might need to use OpenSSL::PKCS7.read_smime rather than .new sometimes
       @pkcs7 = OpenSSL::PKCS7.new(message)
       @private_key = private_key
       @public_certificate = public_certificate
+      @verification_error = nil
     end
 
     def decrypted_message
@@ -63,9 +64,12 @@ module As2
         # CA (in `store`, which is empty). alternately, we could instead remove
         # this flag, and add `partner_certificate` to `store`. but what's the point?
         # we'd only be verifying that `partner_certificate` is connected to `partner_certificate`.
-        #
-        # when this method fails, signature.error_string will be populated.
-        signature.verify([partner_certificate], store, content, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN)
+        output = signature.verify([partner_certificate], store, content, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN)
+
+        # when `signature.verify` fails, signature.error_string will be populated.
+        @verification_error = signature.error_string
+
+        output
       else
         # TODO: how to log this?
         false
