@@ -2,20 +2,10 @@ require 'rack'
 require 'logger'
 require 'stringio'
 require 'as2/mime_generator'
-require 'as2/base64_helper'
 require 'as2/message'
 
 module As2
   class Server
-    HEADER_MAP = {
-      'To' => 'HTTP_AS2_TO',
-      'From' => 'HTTP_AS2_FROM',
-      'Subject' => 'HTTP_SUBJECT',
-      'MIME-Version' => 'HTTP_MIME_VERSION',
-      'Content-Disposition' => 'HTTP_CONTENT_DISPOSITION',
-      'Content-Type' => 'CONTENT_TYPE',
-    }
-
     attr_accessor :logger
 
     def initialize(options = {}, &block)
@@ -34,17 +24,16 @@ module As2
         return send_error(env, "Invalid partner name #{env['HTTP_AS2_FROM']}")
       end
 
-      smime_string = build_smime_text(env)
-      message = Message.new(smime_string, @info.pkey, @info.certificate)
+      request = Rack::Request.new(env)
+      message = Message.new(request.body.read, @info.pkey, @info.certificate)
+
       unless message.valid_signature?(partner.certificate)
         if @options[:on_signature_failure]
-          @options[:on_signature_failure].call({env: env, smime_string: smime_string})
+          @options[:on_signature_failure].call({env: env, smime_string: message.pkcs7.to_pem})
         else
           raise "Could not verify signature"
         end
       end
-
-      mic = OpenSSL::Digest::SHA1.base64digest(message.decrypted_message)
 
       if @block
         begin
@@ -54,24 +43,10 @@ module As2
         end
       end
 
-      send_mdn(env, mic)
+      send_mdn(env, message.mic)
     end
 
     private
-    def build_smime_text(env)
-      request = Rack::Request.new(env)
-      smime_data = StringIO.new
-
-      HEADER_MAP.each do |name, value|
-        smime_data.puts "#{name}: #{env[value]}"
-      end
-
-      smime_data.puts 'Content-Transfer-Encoding: base64'
-      smime_data.puts
-      smime_data.puts Base64Helper.ensure_base64(request.body.read)
-
-      return smime_data.string
-    end
 
     def logger(env)
       @logger ||= Logger.new env['rack.errors']
