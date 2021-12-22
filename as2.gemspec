@@ -6,8 +6,8 @@ require 'as2/version'
 Gem::Specification.new do |spec|
   spec.name          = "as2"
   spec.version       = As2::VERSION
-  spec.authors       = ["OfficeLuv"]
-  spec.email         = ["development@officeluv.com"]
+  spec.authors       = ["OfficeLuv", "Transfix"]
+  spec.email         = ["development@officeluv.com", "alex.dean@transfix.io"]
 
   spec.summary       = %q{Simple AS2 server and client implementation}
   spec.description   = %q{Simple AS2 server and client implementation. Follows the AS2 implementation from http://as2.mendelson-e-c.com}
@@ -30,8 +30,8 @@ Gem::Specification.new do |spec|
   spec.add_dependency "mail"
   spec.add_dependency "rack"
 
-  spec.add_development_dependency "bundler", "~> 1.10"
-  spec.add_development_dependency "rake", "~> 10.0"
+  spec.add_development_dependency "bundler", ">= 1.10"
+  spec.add_development_dependency "rake", ">= 10.0"
   spec.add_development_dependency "thin"
   spec.add_development_dependency "minitest"
 end
