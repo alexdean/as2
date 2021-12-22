@@ -1,5 +1,4 @@
 require 'test_helper'
-require 'pry'
 
 describe As2::Config do
   # before do
