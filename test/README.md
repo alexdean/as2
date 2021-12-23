@@ -8,7 +8,7 @@ Generating certificates and fixture data is a little involved.
 WARNING: Messages in `test/fixures` will need to be updated if these certificates are changed.
 
 ```
-openssl req -x509 -newkey rsa:2048 -keyout test/certificates/server.key -out test/certificates/server.crt -days 1825 -passin pass: -nodes-> % openssl req -x509 -newkey rsa:2048 -keyout test/certificates/client.key -out test/certificates/client.crt -days 1825 -passin pass: -nodes
+openssl req -x509 -newkey rsa:2048 -keyout test/certificates/client.key -out test/certificates/client.crt -days 1825 -passin pass: -nodes
 Generating a 2048 bit RSA private key
 .............................+++
 ..+++
@@ -29,7 +29,7 @@ Organizational Unit Name (eg, section) []:
 Common Name (eg, fully qualified host name) []:client.test-ruby-as2.com
 Email Address []:
 
--> % openssl req -x509 -newkey rsa:2048 -keyout test/certificates/server.key -out test/certificates/server.crt -days 1825 -passin pass: -nodes
+openssl req -x509 -newkey rsa:2048 -keyout test/certificates/server.key -out test/certificates/server.crt -days 1825 -passin pass: -nodes
 Generating a 2048 bit RSA private key
 ...................................................................................+++
 .................+++
