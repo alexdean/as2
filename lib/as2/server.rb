@@ -50,17 +50,6 @@ module As2
       send_mdn(env, message.mic)
     end
 
-    private
-
-    def logger(env)
-      @logger ||= Logger.new env['rack.errors']
-    end
-
-    def send_error(env, msg)
-      logger(env).error msg
-      send_mdn env, nil, msg
-    end
-
     def send_mdn(env, mic, failed = nil)
       report = MimeGenerator::Part.new
       report['Content-Type'] = 'multipart/report; report-type=disposition-notification'
@@ -113,6 +102,17 @@ module As2
       headers['Connection'] = 'close'
 
       [200, headers, ["\r\n" + smime_signed]]
+    end
+
+    private
+
+    def logger(env)
+      @logger ||= Logger.new env['rack.errors']
+    end
+
+    def send_error(env, msg)
+      logger(env).error msg
+      send_mdn env, nil, msg
     end
   end
 end
