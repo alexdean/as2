@@ -25,6 +25,9 @@ describe As2::Message do
   end
 
   describe '#valid_signature?' do
+    it 'is successful when message content contains trailing newline'
+    it 'is successful when message content does not contain trailing newline'
+
     it 'is true when message is signed properly' do
       assert @message.valid_signature?(@client_crt), "Invalid signature"
     end

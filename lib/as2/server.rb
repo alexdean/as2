@@ -8,28 +8,36 @@ module As2
   class Server
     attr_accessor :logger
 
-    def initialize(options = {}, &block)
+    # @param [As2::Config::ServerInfo] server_info Config used for naming of this
+    #   server and key/certificate selection. If omitted, the main As2::Config.server_info is used.
+    # @param [As2::Config::Partner] partner Which partner to receive messages from.
+    #   If omitted, the partner is determined by incoming HTTP headers.
+    # @param [Proc] on_signature_failure A proc which will be called if signature verification fails.
+    # @param [Proc] block A proc which will be called with file_name and file content.
+    def initialize(server_info: nil, partner: nil, on_signature_failure: nil, &block)
       @block = block
-      @info = Config.server_info
-      @options = options
+      @server_info = server_info || Config.server_info
+      @partner = partner
+      @signature_failure_handler = on_signature_failure
     end
 
     def call(env)
-      if env['HTTP_AS2_TO'] != @info.name
+      if env['HTTP_AS2_TO'] != @server_info.name
         return send_error(env, "Invalid destination name #{env['HTTP_AS2_TO']}")
       end
 
-      partner = Config.partners[env['HTTP_AS2_FROM']]
-      unless partner
+      partner = @partner || Config.partners[env['HTTP_AS2_FROM']]
+
+      if !partner || env['HTTP_AS2_FROM'] != partner.name
         return send_error(env, "Invalid partner name #{env['HTTP_AS2_FROM']}")
       end
 
       request = Rack::Request.new(env)
-      message = Message.new(request.body.read, @info.pkey, @info.certificate)
+      message = Message.new(request.body.read, @server_info.pkey, @server_info.certificate)
 
       unless message.valid_signature?(partner.certificate)
-        if @options[:on_signature_failure]
-          @options[:on_signature_failure].call({
+        if @signature_failure_handler
+          @signature_failure_handler.call({
             env: env,
             smime_string: message.decrypted_message,
             verification_error: message.verification_error
@@ -66,9 +74,9 @@ module As2
       notification['Content-Transfer-Encoding'] = '7bit'
 
       options = {
-        'Reporting-UA' => @info.name,
-        'Original-Recipient' => "rfc822; #{@info.name}",
-        'Final-Recipient' => "rfc822; #{@info.name}",
+        'Reporting-UA' => @server_info.name,
+        'Original-Recipient' => "rfc822; #{@server_info.name}",
+        'Final-Recipient' => "rfc822; #{@server_info.name}",
         'Original-Message-ID' => env['HTTP_MESSAGE_ID']
       }
       if failed
@@ -85,7 +93,7 @@ module As2
 
       report.write msg_out
 
-      pkcs7 = OpenSSL::PKCS7.sign @info.certificate, @info.pkey, msg_out.string
+      pkcs7 = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, msg_out.string
       pkcs7.detached = true
       smime_signed = OpenSSL::PKCS7.write_smime pkcs7, msg_out.string
 
@@ -95,8 +103,8 @@ module As2
       headers = {}
       headers['Content-Type'] = content_type
       headers['MIME-Version'] = '1.0'
-      headers['Message-ID'] = "<#{@info.name}-#{Time.now.strftime('%Y%m%d%H%M%S')}@#{@info.domain}>"
-      headers['AS2-From'] = @info.name
+      headers['Message-ID'] = "<#{@server_info.name}-#{Time.now.strftime('%Y%m%d%H%M%S')}@#{@server_info.domain}>"
+      headers['AS2-From'] = @server_info.name
       headers['AS2-To'] = env['HTTP_AS2_FROM']
       headers['AS2-Version'] = '1.2'
       headers['Connection'] = 'close'

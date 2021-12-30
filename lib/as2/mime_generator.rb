@@ -5,6 +5,7 @@ module As2
         @parts = []
         @body = ""
         @headers = {}
+        @id = nil
       end
 
       def [](name)
