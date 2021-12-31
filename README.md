@@ -4,6 +4,10 @@ This is a proof of concept implementation of AS2 protocol: http://www.ietf.org/r
 
 Tested with the mendelson AS2 implementation from http://as2.mendelson-e-c.com
 
+## Build Status
+
+[![Test Suite](https://github.com/andjosh/as2/actions/workflows/test.yml/badge.svg)](https://github.com/andjosh/as2/actions/workflows/test.yml)
+
 ## Known Limitations
 
 These limitations may be removed over time as demand (and pull requests!) come
