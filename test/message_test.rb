@@ -37,7 +37,7 @@ describe As2::Message do
     it 'is false when signature does not match content' do
       hacked_payload = 'h4xx0rd'
       encrypted = OpenSSL::PKCS7.new(File.read('test/fixtures/hello_world_2.pkcs7'))
-      decrypted = encrypted.decrypt @server_key
+      decrypted = encrypted.decrypt @server_key, @server_crt
 
       # replace the correct (base64-encoded) payload with our own and re-encrypt
       hacked_cleartext = decrypted.gsub(Base64.strict_encode64(@correct_cleartext), Base64.strict_encode64(hacked_payload))
