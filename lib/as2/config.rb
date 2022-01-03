@@ -97,6 +97,11 @@ module As2
       def store
         @store ||= OpenSSL::X509::Store.new
       end
+
+      def reset!
+        @partners = {}
+        @store = OpenSSL::X509::Store.new
+      end
     end
   end
 end

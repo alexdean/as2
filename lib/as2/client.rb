@@ -2,6 +2,8 @@ require 'net/http'
 
 module As2
   class Client
+    attr_reader :partner, :server_info
+
     # @param [As2::Config::Partner,String] partner The partner to send a message to.
     #   If a string is given, it should be a partner name which has been registered
     #   via a call to #add_partner.

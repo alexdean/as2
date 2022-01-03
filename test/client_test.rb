@@ -1,10 +1,60 @@
 require 'test_helper'
 
 describe As2::Client do
-  it 'accepts partner info as a config param'
-  it 'searches global config if partner is a string'
-  it 'accepts server_info as a config param'
-  it 'uses global server config if server_info is nil'
+  after do
+    As2.reset_config!
+  end
+
+  it 'accepts partner info as a config param' do
+    partner = build_partner('ALICE', credentials: 'client')
+
+    client = As2::Client.new(partner)
+
+    assert_equal partner, client.partner
+  end
+
+  it 'accepts partner info as a string, which is searched in global config' do
+    As2.configure do |conf|
+      conf.name = 'BOB'
+      conf.certificate = public_key("test/certificates/server.crt")
+      conf.url = 'https://test.com'
+      conf.domain = 'test.com'
+
+      conf.add_partner do |partner|
+        partner.name = 'ALICE'
+        partner.url = 'http://localhost:3000'
+        partner.certificate = public_key("test/certificates/client.crt")
+      end
+    end
+
+    client = As2::Client.new('ALICE')
+
+    assert_equal client.partner, As2::Config.partners['ALICE']
+  end
+
+  it 'accepts server_info as a config param' do
+    partner = build_partner('ALICE', credentials: 'client')
+    server_info = build_server_info('BOB', credentials: 'server')
+
+    client = As2::Client.new(partner, server_info: server_info)
+
+    assert_equal server_info, client.server_info
+  end
+
+  it 'defaults to using global server_info if server_info is nil' do
+    As2.configure do |conf|
+      conf.name = 'BOB'
+      conf.certificate = public_key("test/certificates/server.crt")
+      conf.url = 'https://test.com'
+      conf.domain = 'test.com'
+    end
+
+    partner = build_partner('ALICE', credentials: 'client')
+
+    client = As2::Client.new(partner)
+
+    assert_equal As2::Config.server_info, client.server_info
+  end
 
   # these are really 'dogfood' tests using both As2::Client and As2::Server.
   describe '#send_file' do
