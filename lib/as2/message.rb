@@ -29,7 +29,10 @@ module As2
         # https://datatracker.ietf.org/doc/html/rfc3851#section-3.4.3.1
 
         # TODO: more robust detection of content vs signature (if they're ever out of order).
-        content = mail.parts[0].raw_source.strip
+        content = mail.parts[0].raw_source
+        # remove any leading \r\n characters (between headers & body i think).
+        content = content.gsub(/\A\s+/, '')
+
         signature = OpenSSL::PKCS7.new(mail.parts[1].body.to_s)
 
         # using an empty CA store. see notes on NOVERIFY flag below.
@@ -83,7 +86,7 @@ module As2
     # Return the attached file, use .filename and .body on the return value
     def attachment
       if mail.has_attachments?
-        mail.attachments.find{|a| a.content_type == "application/edi-consent"}
+        mail.parts.find{|a| a.content_type == "application/edi-consent"}
       else
         mail
       end

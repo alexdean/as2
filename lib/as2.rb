@@ -9,4 +9,8 @@ module As2
   def self.configure(&block)
     Config.configure(&block)
   end
+
+  def self.reset_config!
+    Config.reset!
+  end
 end
