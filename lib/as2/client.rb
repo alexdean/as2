@@ -52,23 +52,28 @@ module As2
         req['Content-Transfer-Encoding'] = 'base64'
         req['Message-ID'] = "<#{@server_info.name}-#{Time.now.strftime('%Y%m%d%H%M%S')}@#{@server_info.url.host}>"
 
-        body_content = content || File.read(file_name)
+        document_content = content || File.read(file_name)
 
-        body = StringIO.new
-        body.puts "Content-Type: application/EDI-Consent"
-        body.puts "Content-Transfer-Encoding: base64"
-        body.puts "Content-Disposition: attachment; filename=#{file_name}"
-        body.puts
-        body.puts [body_content].pack("m*")
+        document_payload =  "Content-Type: application/EDI-Consent\r\n"
+        document_payload << "Content-Transfer-Encoding: base64\r\n"
+        document_payload << "Content-Disposition: attachment; filename=#{file_name}\r\n"
+        document_payload << "\r\n"
+        document_payload << Base64.strict_encode64(document_content)
 
-        mic = OpenSSL::Digest::SHA1.base64digest(body.string)
+        signature = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, document_payload
+        signature.detached = true
+        container = OpenSSL::PKCS7.write_smime signature, document_payload
+        encrypted = OpenSSL::PKCS7.encrypt [@partner.certificate], container
+        smime_encrypted = OpenSSL::PKCS7.write_smime encrypted
 
-        pkcs7 = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, body.string
-        pkcs7.detached = true
-        smime_signed = OpenSSL::PKCS7.write_smime pkcs7, body.string
-        pkcs7 = OpenSSL::PKCS7.encrypt [@partner.certificate], smime_signed
-        smime_encrypted = OpenSSL::PKCS7.write_smime pkcs7
-
+        # w/o the `#sub` call, we get this:
+        # ArgumentError: Could not parse the PKCS7: not enough data
+        #   lib/as2/message.rb:7:in `initialize'
+        #   lib/as2/message.rb:7:in `new'
+        #   lib/as2/message.rb:7:in `initialize'
+        #   lib/as2/server.rb:36:in `new'
+        #   lib/as2/server.rb:36:in `call'
+        #   test/client_test.rb:78:in `block (4 levels) in <top (required)>'
         req.body = smime_encrypted.sub(/^.+?\n\n/m, '')
 
         resp = http.request(req)
@@ -76,20 +81,28 @@ module As2
         mic_matched = false
         mid_matched = false
         disp_code = nil
-        body = nil
-        if success
-          body = resp.body
+        plain_text_body = nil
 
-          smime = OpenSSL::PKCS7.read_smime "Content-Type: #{resp['Content-Type']}\r\n#{body}"
-          smime.verify [@partner.certificate], Config.store
+        if success
+          resp_body = resp.body
+
+          smime = OpenSSL::PKCS7.read_smime "Content-Type: #{resp['Content-Type']}\r\n#{resp_body}"
+
+          # based on As2::Message version
+          # TODO: test cases based on valid/invalid responses. (response signed with wrong certificate, etc.)
+          smime.verify [@partner.certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN
 
           mail = Mail.new smime.data
           mail.parts.each do |part|
             case part.content_type
             when 'text/plain'
-              body = part.body
+              plain_text_body = part.body
             when 'message/disposition-notification'
+              # "The rules for constructing the AS2-disposition-notification content..."
+              # https://datatracker.ietf.org/doc/html/rfc4130#section-7.4.3
+
               options = {}
+              # TODO: can we use Mail built-ins for this?
               part.body.to_s.lines.each do |line|
                 if line =~ /^([^:]+): (.+)$/
                   options[$1] = $2
@@ -102,7 +115,13 @@ module As2
                 success = false
               end
 
-              if options['Received-Content-MIC'].start_with?(mic)
+              # do mic calc using the algorithm specified by server.
+              # (even if we specify sha1, server may send back MIC using a different algo.)
+              received_mic, micalg = options['Received-Content-MIC'].split(',').map(&:strip)
+              micalg ||= 'sha1'
+              mic = As2::DigestSelector.for_code(micalg).base64digest(document_payload)
+
+              if received_mic == mic
                 mic_matched = true
               else
                 success = false
@@ -113,7 +132,8 @@ module As2
             end
           end
         end
-        Result.new success, resp, mic_matched, mid_matched, body, disp_code
+
+        Result.new success, resp, mic_matched, mid_matched, plain_text_body, disp_code
       end
     end
   end

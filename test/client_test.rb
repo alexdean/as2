@@ -98,8 +98,38 @@ describe As2::Client do
 
         result = @alice_client.send_file(file_name, content: File.read('test/fixtures/message.txt'))
 
+        assert_equal As2::Client::Result, result.class
+        assert result.success
+        assert result.mic_matched
+        assert result.mid_matched
         assert_equal file_name, file_name_received_by_bob
         assert_equal File.read('test/fixtures/message.txt'), file_content_received_by_bob
+      end
+    end
+
+    describe 'when file content has newlines' do
+      # we do some gsub string manipulation in a few places in As2::Client
+      # want to be sure this isn't affecting what is actually transmitted.
+      it 'sends content correctly' do
+        file_name_received_by_bob = nil
+        file_content_received_by_bob = nil
+
+        @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner) do |file_name, body|
+                        file_name_received_by_bob = file_name
+                        file_content_received_by_bob = body.to_s
+                      end
+
+        file_name = 'data.txt'
+
+        expected_content = "a\nb\tc\nd\r\ne\n"
+        result = @alice_client.send_file(file_name, content: expected_content)
+
+        assert_equal As2::Client::Result, result.class
+        assert result.success
+        assert result.mic_matched
+        assert result.mid_matched
+        assert_equal file_name, file_name_received_by_bob
+        assert_equal expected_content, file_content_received_by_bob
       end
     end
 
@@ -120,6 +150,10 @@ describe As2::Client do
         Dir.chdir(dir_name) do
           result = @alice_client.send_file(file_name)
 
+          assert_equal As2::Client::Result, result.class
+          assert result.success
+          assert result.mic_matched
+          assert result.mid_matched
           assert_equal file_name, file_name_received_by_bob
           assert_equal File.read(file_name), file_content_received_by_bob
         end
@@ -143,6 +177,10 @@ describe As2::Client do
 
         result = @alice_client.send_file(file_name, content: File.read('test/fixtures/multibyte.txt'))
 
+        assert_equal As2::Client::Result, result.class
+        assert result.success
+        assert result.mic_matched
+        assert result.mid_matched
         assert_equal file_name, file_name_received_by_bob
         assert_equal File.read('test/fixtures/multibyte.txt', encoding: 'ASCII-8BIT'), file_content_received_by_bob
       end

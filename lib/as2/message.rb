@@ -80,6 +80,7 @@ module As2
     end
 
     def mic
+      # TODO: could use As2::DigestSelector if a different algo is needed.
       OpenSSL::Digest::SHA1.base64digest(attachment.raw_source.strip)
     end
 
