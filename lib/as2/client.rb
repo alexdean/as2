@@ -22,8 +22,6 @@ module As2
       @server_info = server_info || Config.server_info
     end
 
-    Result = Struct.new :success, :response, :mic_matched, :mid_matched, :body, :disp_code
-
     # Send a file to a partner
     #
     #   * If the content parameter is omitted, then `file_name` must be a path
