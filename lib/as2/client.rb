@@ -33,62 +33,60 @@ module As2
     # @param [String] content
     # @return [As2::Client::Result]
     def send_file(file_name, content: nil)
-      http = Net::HTTP.new(@partner.url.host, @partner.url.port)
-      http.use_ssl = @partner.url.scheme == 'https'
-      # http.set_debug_output $stderr
-      http.start do
-        req = Net::HTTP::Post.new @partner.url.path
-        req['AS2-Version'] = '1.2'
-        req['AS2-From'] = @server_info.name
-        req['AS2-To'] = @partner.name
-        req['Subject'] = 'AS2 EDI Transaction'
-        req['Content-Type'] = 'application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m'
-        req['Disposition-Notification-To'] = @server_info.url.to_s
-        req['Disposition-Notification-Options'] = 'signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, sha1'
-        req['Content-Disposition'] = 'attachment; filename="smime.p7m"'
-        req['Recipient-Address'] = @server_info.url.to_s
-        req['Content-Transfer-Encoding'] = 'base64'
-        req['Message-ID'] = "<#{@server_info.name}-#{Time.now.strftime('%Y%m%d%H%M%S')}@#{@server_info.url.host}>"
+      outbound_message_id = As2.generate_message_id(@server_info)
 
-        document_content = content || File.read(file_name)
+      req = Net::HTTP::Post.new @partner.url.path
+      req['AS2-Version'] = '1.2'
+      req['AS2-From'] = @server_info.name
+      req['AS2-To'] = @partner.name
+      req['Subject'] = 'AS2 EDI Transaction'
+      req['Content-Type'] = 'application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m'
+      req['Disposition-Notification-To'] = @server_info.url.to_s
+      req['Disposition-Notification-Options'] = 'signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, sha1'
+      req['Content-Disposition'] = 'attachment; filename="smime.p7m"'
+      req['Recipient-Address'] = @server_info.url.to_s
+      req['Content-Transfer-Encoding'] = 'base64'
+      req['Message-ID'] = outbound_message_id
 
-        document_payload =  "Content-Type: application/EDI-Consent\r\n"
-        document_payload << "Content-Transfer-Encoding: base64\r\n"
-        document_payload << "Content-Disposition: attachment; filename=#{file_name}\r\n"
-        document_payload << "\r\n"
-        document_payload << Base64.strict_encode64(document_content)
+      document_content = content || File.read(file_name)
 
-        signature = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, document_payload
-        signature.detached = true
-        container = OpenSSL::PKCS7.write_smime signature, document_payload
-        encrypted = OpenSSL::PKCS7.encrypt [@partner.certificate], container
-        smime_encrypted = OpenSSL::PKCS7.write_smime encrypted
+      document_payload =  "Content-Type: application/EDI-Consent\r\n"
+      document_payload << "Content-Transfer-Encoding: base64\r\n"
+      document_payload << "Content-Disposition: attachment; filename=#{file_name}\r\n"
+      document_payload << "\r\n"
+      document_payload << Base64.strict_encode64(document_content)
 
-        # w/o the `#sub` call, we get this:
-        # ArgumentError: Could not parse the PKCS7: not enough data
-        #   lib/as2/message.rb:7:in `initialize'
-        #   lib/as2/message.rb:7:in `new'
-        #   lib/as2/message.rb:7:in `initialize'
-        #   lib/as2/server.rb:36:in `new'
-        #   lib/as2/server.rb:36:in `call'
-        #   test/client_test.rb:78:in `block (4 levels) in <top (required)>'
-        req.body = smime_encrypted.sub(/^.+?\n\n/m, '')
+      signature = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, document_payload
+      signature.detached = true
+      container = OpenSSL::PKCS7.write_smime signature, document_payload
+      encrypted = OpenSSL::PKCS7.encrypt [@partner.certificate], container
+      smime_encrypted = OpenSSL::PKCS7.write_smime encrypted
 
-        resp = http.request(req)
-        success = resp.code == '200'
-        mic_matched = false
-        mid_matched = false
-        disp_code = nil
-        plain_text_body = nil
+      req.body = smime_encrypted.sub(/^.+?\n\n/m, '')
 
-        if success
-          resp_body = resp.body
+      resp = nil
+      signature_verification_error = :not_checked
+      exception = nil
+      mic_matched = nil
+      mid_matched = nil
+      disposition = nil
+      plain_text_body = nil
 
-          smime = OpenSSL::PKCS7.read_smime "Content-Type: #{resp['Content-Type']}\r\n#{resp_body}"
+      begin
+        http = Net::HTTP.new(@partner.url.host, @partner.url.port)
+        http.use_ssl = @partner.url.scheme == 'https'
+        # http.set_debug_output $stderr
+        http.start do
+          resp = http.request(req)
+        end
 
+        if resp.code == '200'
+          response_content = "Content-Type: #{resp['Content-Type']}\r\n#{resp.body}"
+          smime = OpenSSL::PKCS7.read_smime response_content
           # based on As2::Message version
           # TODO: test cases based on valid/invalid responses. (response signed with wrong certificate, etc.)
           smime.verify [@partner.certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN
+          signature_verification_error = smime.error_string
 
           mail = Mail.new smime.data
           mail.parts.each do |part|
@@ -107,32 +105,32 @@ module As2
                 end
               end
 
-              if req['Message-ID'] == options['Original-Message-ID']
-                mid_matched = true
-              else
-                success = false
-              end
+              disposition = options['Disposition']
+              mid_matched = req['Message-ID'] == options['Original-Message-ID']
 
               # do mic calc using the algorithm specified by server.
               # (even if we specify sha1, server may send back MIC using a different algo.)
               received_mic, micalg = options['Received-Content-MIC'].split(',').map(&:strip)
               micalg ||= 'sha1'
               mic = As2::DigestSelector.for_code(micalg).base64digest(document_payload)
-
-              if received_mic == mic
-                mic_matched = true
-              else
-                success = false
-              end
-
-              disp_code = options['Disposition']
-              success = disp_code.end_with?('processed')
+              mic_matched = received_mic == mic
             end
           end
         end
-
-        Result.new success, resp, mic_matched, mid_matched, plain_text_body, disp_code
+      rescue => e
+        exception = e
       end
+
+      Result.new(
+        response: resp,
+        mic_matched: mic_matched,
+        mid_matched: mid_matched,
+        body: plain_text_body,
+        disposition: disposition,
+        signature_verification_error: signature_verification_error,
+        exception: exception,
+        outbound_message_id: outbound_message_id
+      )
     end
   end
 end

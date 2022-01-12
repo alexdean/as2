@@ -3,6 +3,7 @@ require 'as2'
 require 'pry'
 
 require 'minitest/autorun'
+require 'minitest/focus'
 require 'webmock/minitest'
 
 WebMock.disable_net_connect!

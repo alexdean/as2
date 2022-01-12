@@ -103,7 +103,7 @@ module As2
       headers = {}
       headers['Content-Type'] = content_type
       headers['MIME-Version'] = '1.0'
-      headers['Message-ID'] = "<#{@server_info.name}-#{Time.now.strftime('%Y%m%d%H%M%S')}@#{@server_info.domain}>"
+      headers['Message-ID'] = As2.generate_message_id(@server_info)
       headers['AS2-From'] = @server_info.name
       headers['AS2-To'] = env['HTTP_AS2_FROM']
       headers['AS2-Version'] = '1.2'
