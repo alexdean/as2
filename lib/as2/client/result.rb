@@ -24,11 +24,16 @@ module As2
       end
 
       def success
+        # 'processed' is good (though may include warnings.)
+        # 'processed/error' is not.
+        downcased_disposition = self.disposition.to_s.downcase
+
         # TODO: we'll never have success if MDN is unsigned.
         self.signature_verified &&
         self.mic_matched &&
         self.mid_matched &&
-        self.disposition&.include?('processed')
+        downcased_disposition.include?('processed') &&
+        !downcased_disposition.include?('processed/error')
       end
     end
   end
