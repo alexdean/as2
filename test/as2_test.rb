@@ -9,7 +9,7 @@ describe As2 do
       5.times do
         message_id = As2.generate_message_id(server_info)
         message_ids << message_id
-        assert message_id.match(/^\<#{server_info.name}-\d{14}-[a-f0-9\-]{36}@#{server_info.domain}\>$/), "'#{message_id}' does not match expected pattern."
+        assert message_id.match(/^\<#{server_info.name}-\d{8}-\d{6}-[a-f0-9\-]{36}@#{server_info.domain}\>$/), "'#{message_id}' does not match expected pattern."
       end
 
       assert_equal 5, message_ids.uniq.size

@@ -18,6 +18,6 @@ module As2
   end
 
   def self.generate_message_id(server_info)
-    "<#{server_info.name}-#{Time.now.strftime('%Y%m%d%-H%M%S')}-#{SecureRandom.uuid}@#{server_info.domain}>"
+    "<#{server_info.name}-#{Time.now.strftime('%Y%m%d-%H%M%S')}-#{SecureRandom.uuid}@#{server_info.domain}>"
   end
 end
