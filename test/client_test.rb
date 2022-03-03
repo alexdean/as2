@@ -56,7 +56,6 @@ describe As2::Client do
     assert_equal As2::Config.server_info, client.server_info
   end
 
-  # these are really 'dogfood' tests using both As2::Client and As2::Server.
   describe '#send_file' do
     before do
       # scenario: Alice is sending a message to Bob.
@@ -67,6 +66,8 @@ describe As2::Client do
       @bob_server_info = build_server_info('BOB', credentials: 'server')
 
       @alice_client = As2::Client.new(@bob_partner, server_info: @alice_server_info)
+      # individual tests will provide a different @bob_server if they want to assert on its behavior
+      @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner)
 
       stub_request(:post, @bob_partner.url).to_return do |request|
         # do all the HTTP things that rack would do during a real request
@@ -84,67 +85,130 @@ describe As2::Client do
       end
     end
 
-    describe 'when file_content is given' do
-      it 'sends the given file content' do
-        file_name_received_by_bob = nil
-        file_content_received_by_bob = nil
+    it 'captures and returns any exception raised while processing MDN response' do
+      expected_error_message = "error parsing attachment"
+      mail_replacment = ->(*args) { raise expected_error_message }
 
-        @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner) do |file_name, body|
-                        file_name_received_by_bob = file_name
-                        file_content_received_by_bob = body.to_s
-                      end
+      Mail.stub(:new, mail_replacment) do
+        result = @alice_client.send_file('file_name.txt', content: 'file content')
 
-        file_name = 'data.txt'
-
-        result = @alice_client.send_file(file_name, content: File.read('test/fixtures/message.txt'))
-
-        assert_equal file_name, file_name_received_by_bob
-        assert_equal File.read('test/fixtures/message.txt'), file_content_received_by_bob
+        assert_equal RuntimeError, result.exception.class
+        assert_equal expected_error_message, result.exception.message
+        assert_equal false, result.success
       end
     end
 
-    describe 'when file_content is nil' do
-      it 'reads content from file_name' do
-        file_name_received_by_bob = nil
-        file_content_received_by_bob = nil
+    # these are really 'dogfood' tests using both As2::Client and As2::Server.
+    describe 'integration scenarios' do
+      # TODO: can we send/receive a 0-byte file w/o error?
 
-        @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner) do |file_name, body|
-                        file_name_received_by_bob = file_name
-                        file_content_received_by_bob = body.to_s
-                      end
+      describe 'when file_content is given' do
+        it 'sends the given file content' do
+          file_name_received_by_bob = nil
+          file_content_received_by_bob = nil
 
-        file_path = 'test/fixtures/message.txt'
-        dir_name = File.dirname(file_path)
-        file_name = File.basename(file_path)
+          @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner) do |file_name, body|
+                          file_name_received_by_bob = file_name
+                          file_content_received_by_bob = body.to_s
+                        end
 
-        Dir.chdir(dir_name) do
-          result = @alice_client.send_file(file_name)
+          file_name = 'data.txt'
 
+          result = @alice_client.send_file(file_name, content: File.read('test/fixtures/message.txt'))
+
+          assert_equal As2::Client::Result, result.class
+          assert result.success
+          assert result.mic_matched
+          assert result.mid_matched
           assert_equal file_name, file_name_received_by_bob
-          assert_equal File.read(file_name), file_content_received_by_bob
+          assert_equal File.read('test/fixtures/message.txt'), file_content_received_by_bob
         end
       end
-    end
 
-    describe 'non-ASCII content' do
-      # not totally smooth due to character encoding. the bytes make it, but it's not a totally transparent process.
-      # lower-priority issue since EDI is all ASCII, but worth being aware of & fixing at some point.
-      # maybe Server could accept a parameter which tells us which character encoding to use?
-      it 'is not mangled too horribly' do
-        file_name_received_by_bob = nil
-        file_content_received_by_bob = nil
+      describe 'when file content has newlines' do
+        # we do some gsub string manipulation in a few places in As2::Client
+        # want to be sure this isn't affecting what is actually transmitted.
+        it 'sends content correctly' do
+          file_name_received_by_bob = nil
+          file_content_received_by_bob = nil
 
-        @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner) do |file_name, body|
-                        file_name_received_by_bob = file_name
-                        file_content_received_by_bob = body.to_s
-                      end
+          @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner) do |file_name, body|
+                          file_name_received_by_bob = file_name
+                          file_content_received_by_bob = body.to_s
+                        end
 
-        file_name = 'data.txt'
+          file_name = 'data.txt'
 
-        result = @alice_client.send_file(file_name, content: File.read('test/fixtures/multibyte.txt'))
+          expected_content = "a\nb\tc\nd\r\ne\n"
+          result = @alice_client.send_file(file_name, content: expected_content)
 
-        assert_equal file_name, file_name_received_by_bob
-        assert_equal File.read('test/fixtures/multibyte.txt', encoding: 'ASCII-8BIT'), file_content_received_by_bob
+          assert_equal As2::Client::Result, result.class
+          assert result.success
+          assert result.signature_verified
+          assert_nil result.signature_verification_error
+          assert result.mic_matched
+          assert result.mid_matched
+          assert_equal file_name, file_name_received_by_bob
+          assert_equal expected_content, file_content_received_by_bob
+        end
+      end
+
+      describe 'when file_content is nil' do
+        it 'reads content from file_name' do
+          file_name_received_by_bob = nil
+          file_content_received_by_bob = nil
+
+          @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner) do |file_name, body|
+                          file_name_received_by_bob = file_name
+                          file_content_received_by_bob = body.to_s
+                        end
+
+          file_path = 'test/fixtures/message.txt'
+          dir_name = File.dirname(file_path)
+          file_name = File.basename(file_path)
+
+          Dir.chdir(dir_name) do
+            result = @alice_client.send_file(file_name)
+
+            assert_equal As2::Client::Result, result.class
+            assert result.success
+            assert result.signature_verified
+            assert_nil result.signature_verification_error
+            assert result.mic_matched
+            assert result.mid_matched
+            assert_equal file_name, file_name_received_by_bob
+            assert_equal File.read(file_name), file_content_received_by_bob
+          end
+        end
+      end
+
+      describe 'non-ASCII content' do
+        # not totally smooth due to character encoding. the bytes make it, but it's not a totally transparent process.
+        # lower-priority issue since EDI is all ASCII, but worth being aware of & fixing at some point.
+        # maybe Server could accept a parameter which tells us which character encoding to use?
+        it 'is not mangled too horribly' do
+          file_name_received_by_bob = nil
+          file_content_received_by_bob = nil
+
+          @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner) do |file_name, body|
+                          file_name_received_by_bob = file_name
+                          file_content_received_by_bob = body.to_s
+                        end
+
+          file_name = 'data.txt'
+
+          result = @alice_client.send_file(file_name, content: File.read('test/fixtures/multibyte.txt'))
+
+          assert_equal As2::Client::Result, result.class
+
+          assert result.success
+          assert result.signature_verified
+          assert_nil result.signature_verification_error
+          assert result.mic_matched
+          assert result.mid_matched
+          assert_equal file_name, file_name_received_by_bob
+          assert_equal File.read('test/fixtures/multibyte.txt', encoding: 'ASCII-8BIT'), file_content_received_by_bob
+        end
       end
     end
   end
