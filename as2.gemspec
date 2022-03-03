@@ -6,8 +6,8 @@ require 'as2/version'
 Gem::Specification.new do |spec|
   spec.name          = "as2"
   spec.version       = As2::VERSION
-  spec.authors       = ["OfficeLuv", "Transfix"]
-  spec.email         = ["development@officeluv.com", "alexdean@transfix.io"]
+  spec.authors       = ["OfficeLuv", "Alex Dean"]
+  spec.email         = ["development@officeluv.com", "github@mostlyalex.com"]
 
   spec.summary       = %q{Simple AS2 server and client implementation}
   spec.description   = %q{Simple AS2 server and client implementation. Follows the AS2 implementation from http://as2.mendelson-e-c.com}
