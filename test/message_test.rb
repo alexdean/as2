@@ -58,7 +58,13 @@ describe As2::Message do
 
   describe '#mic' do
     it 'returns a message integrity check value' do
-      assert_equal @message.mic, "nyyjxao566rCbElBu0v+lrDjAq4="
+      assert_equal @message.mic, "7S8fpWpx+ASDj0sCAIfS64Q+sm0ezIpDLhPs9wIEy8I="
+    end
+  end
+
+  describe '#mic_algorithm' do
+    it 'returns a string describing the algorithm used for MIC calculation' do
+      assert_equal @message.mic_algorithm, 'sha256'
     end
   end
 

@@ -80,8 +80,12 @@ module As2
     end
 
     def mic
-      # TODO: could use As2::DigestSelector if a different algo is needed.
-      OpenSSL::Digest::SHA1.base64digest(attachment.raw_source.strip)
+      digest = As2::DigestSelector.for_code(mic_algorithm)
+      digest.base64digest(attachment.raw_source.strip)
+    end
+
+    def mic_algorithm
+      'sha256'
     end
 
     # Return the attached file, use .filename and .body on the return value

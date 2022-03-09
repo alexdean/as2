@@ -33,6 +33,7 @@ module As2
     # @param [String] content
     # @return [As2::Client::Result]
     def send_file(file_name, content: nil)
+      supported_mic_algorithms = ['sha256', 'sha1']
       outbound_message_id = As2.generate_message_id(@server_info)
 
       req = Net::HTTP::Post.new @partner.url.path
@@ -42,7 +43,7 @@ module As2
       req['Subject'] = 'AS2 EDI Transaction'
       req['Content-Type'] = 'application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m'
       req['Disposition-Notification-To'] = @server_info.url.to_s
-      req['Disposition-Notification-Options'] = 'signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, sha1'
+      req['Disposition-Notification-Options'] = "signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional,#{supported_mic_algorithms.join(',')}"
       req['Content-Disposition'] = 'attachment; filename="smime.p7m"'
       req['Recipient-Address'] = @server_info.url.to_s
       req['Content-Transfer-Encoding'] = 'base64'
@@ -59,7 +60,8 @@ module As2
       signature = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, document_payload
       signature.detached = true
       container = OpenSSL::PKCS7.write_smime signature, document_payload
-      encrypted = OpenSSL::PKCS7.encrypt [@partner.certificate], container
+      cipher = OpenSSL::Cipher::AES256.new(:CBC) # default, but we might have to make this configurable
+      encrypted = OpenSSL::PKCS7.encrypt [@partner.certificate], container, cipher
       smime_encrypted = OpenSSL::PKCS7.write_smime encrypted
 
       req.body = smime_encrypted.sub(/^.+?\n\n/m, '')
@@ -111,7 +113,8 @@ module As2
               # do mic calc using the algorithm specified by server.
               # (even if we specify sha1, server may send back MIC using a different algo.)
               received_mic, micalg = options['Received-Content-MIC'].split(',').map(&:strip)
-              micalg ||= 'sha1'
+              # if they don't specify, we'll use a default but it's only a guess & will likely fail.
+              micalg ||= supported_mic_algorithms.first
               mic = As2::DigestSelector.for_code(micalg).base64digest(document_payload)
               mic_matched = received_mic == mic
             end
