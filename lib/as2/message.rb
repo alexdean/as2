@@ -91,7 +91,9 @@ module As2
     # Return the attached file, use .filename and .body on the return value
     def attachment
       if mail.has_attachments?
-        mail.parts.find{|a| a.content_type == "application/edi-consent"}
+        # TODO: match 'application/edi*', test with 'application/edi-x12'
+        # test also with "application/edi-consent; name=this_is_a_filename.txt"
+        mail.parts.find{ |a| a.content_type.match(/^application\/edi/) }
       else
         mail
       end
