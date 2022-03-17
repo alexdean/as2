@@ -46,7 +46,6 @@ module As2
       req['Disposition-Notification-Options'] = "signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional,#{supported_mic_algorithms.join(',')}"
       req['Content-Disposition'] = 'attachment; filename="smime.p7m"'
       req['Recipient-Address'] = @server_info.url.to_s
-      req['Content-Transfer-Encoding'] = 'base64'
       req['Message-ID'] = outbound_message_id
 
       document_content = content || File.read(file_name)
@@ -62,9 +61,12 @@ module As2
       container = OpenSSL::PKCS7.write_smime signature, document_payload
       cipher = OpenSSL::Cipher::AES256.new(:CBC) # default, but we might have to make this configurable
       encrypted = OpenSSL::PKCS7.encrypt [@partner.certificate], container, cipher
-      smime_encrypted = OpenSSL::PKCS7.write_smime encrypted
 
-      req.body = smime_encrypted.sub(/^.+?\n\n/m, '')
+      # > HTTP can handle binary data and so there is no need to use the
+      # > content transfer encodings of MIME
+      #
+      # https://datatracker.ietf.org/doc/html/rfc4130#section-5.2.1
+      req.body = encrypted.to_der
 
       resp = nil
       signature_verification_error = :not_checked
