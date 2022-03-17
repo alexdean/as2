@@ -52,10 +52,11 @@ module As2
       req['AS2-To'] = as2_to
       req['Subject'] = 'AS2 Transaction'
       req['Content-Type'] = 'application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m'
+      req['Date'] = Time.now.rfc2822
       req['Disposition-Notification-To'] = @server_info.url.to_s
       req['Disposition-Notification-Options'] = "signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, #{outbound_mic_algorithm}"
       req['Content-Disposition'] = 'attachment; filename="smime.p7m"'
-      req['Recipient-Address'] = @server_info.url.to_s
+      req['Recipient-Address'] = @partner.url.to_s
       req['Message-ID'] = outbound_message_id
 
       document_content = content || File.read(file_name)
