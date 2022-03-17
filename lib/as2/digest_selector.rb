@@ -15,6 +15,7 @@ module As2
     end
 
     def self.for_code(code)
+      # we may receive 'sha256', 'sha-256', or 'SHA256'.
       normalized = code.strip.downcase.gsub(/[^a-z0-9]/, '')
 
       @map[normalized] || OpenSSL::Digest::SHA1
