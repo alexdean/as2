@@ -22,6 +22,14 @@ module As2
       @server_info = server_info || Config.server_info
     end
 
+    def as2_to
+      @partner.name
+    end
+
+    def as2_from
+      @server_info.name
+    end
+
     # Send a file to a partner
     #
     #   * If the content parameter is omitted, then `file_name` must be a path
@@ -38,8 +46,8 @@ module As2
 
       req = Net::HTTP::Post.new @partner.url.path
       req['AS2-Version'] = '1.2'
-      req['AS2-From'] = @server_info.name
-      req['AS2-To'] = @partner.name
+      req['AS2-From'] = as2_from
+      req['AS2-To'] = as2_to
       req['Subject'] = 'AS2 EDI Transaction'
       req['Content-Type'] = 'application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m'
       req['Disposition-Notification-To'] = @server_info.url.to_s
