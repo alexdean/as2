@@ -47,7 +47,7 @@ module As2
       outbound_message_id = As2.generate_message_id(@server_info)
 
       req = Net::HTTP::Post.new @partner.url.path
-      req['AS2-Version'] = '1.2'
+      req['AS2-Version'] = '1.0' # 1.1 includes compression support, which we dont implement.
       req['AS2-From'] = as2_from
       req['AS2-To'] = as2_to
       req['Subject'] = 'AS2 Transaction'
