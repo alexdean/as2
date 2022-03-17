@@ -39,8 +39,10 @@ module As2
     #
     # @param [String] file_name
     # @param [String] content
+    # @param [String] content_type This is the MIME Content-Type describing the `content` param,
+    #   and will be included in the SMIME payload. It is not the HTTP Content-Type.
     # @return [As2::Client::Result]
-    def send_file(file_name, content: nil)
+    def send_file(file_name, content: nil, content_type: 'application/EDI-Consent')
       supported_mic_algorithms = ['sha256', 'sha1']
       outbound_message_id = As2.generate_message_id(@server_info)
 
@@ -48,7 +50,7 @@ module As2
       req['AS2-Version'] = '1.2'
       req['AS2-From'] = as2_from
       req['AS2-To'] = as2_to
-      req['Subject'] = 'AS2 EDI Transaction'
+      req['Subject'] = 'AS2 Transaction'
       req['Content-Type'] = 'application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m'
       req['Disposition-Notification-To'] = @server_info.url.to_s
       req['Disposition-Notification-Options'] = "signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional,#{supported_mic_algorithms.join(',')}"
@@ -58,7 +60,7 @@ module As2
 
       document_content = content || File.read(file_name)
 
-      document_payload =  "Content-Type: application/EDI-Consent\r\n"
+      document_payload =  "Content-Type: #{content_type}\r\n"
       document_payload << "Content-Transfer-Encoding: base64\r\n"
       document_payload << "Content-Disposition: attachment; filename=#{file_name}\r\n"
       document_payload << "\r\n"
