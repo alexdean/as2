@@ -97,6 +97,10 @@ describe As2::Client do
       end
     end
 
+    it "parses an MDN with a 'disposition:' header" # eg: "disposition: automatic-action/MDN-sent-automatically; processed"
+    it "parses an MDN with extended 'Content-Type:'" # eg: 'Content-Type: text/plain; charset="UTF-8"'
+    it "parses an MDN which is missing 'Received-Content-MIC:'"
+
     # these are really 'dogfood' tests using both As2::Client and As2::Server.
     describe 'integration scenarios' do
       # TODO: can we send/receive a 0-byte file w/o error?

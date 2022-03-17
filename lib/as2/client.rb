@@ -114,10 +114,9 @@ module As2
           signature_verification_error = smime.error_string
 
           mail.parts.each do |part|
-            case part.content_type
-            when 'text/plain'
-              plain_text_body = part.body
-            when 'message/disposition-notification'
+            if part.content_type.start_with?('text/plain')
+              plain_text_body = part.body.to_s.strip
+            elsif part.content_type.start_with?('message/disposition-notification')
               # "The rules for constructing the AS2-disposition-notification content..."
               # https://datatracker.ietf.org/doc/html/rfc4130#section-7.4.3
 
@@ -125,20 +124,27 @@ module As2
               # TODO: can we use Mail built-ins for this?
               part.body.to_s.lines.each do |line|
                 if line =~ /^([^:]+): (.+)$/
-                  options[$1] = $2
+                  # downcase because we've seen both 'Disposition' and 'disposition'
+                  options[$1.to_s.downcase] = $2
                 end
               end
 
-              disposition = options['Disposition']
-              mid_matched = req['Message-ID'] == options['Original-Message-ID']
+              disposition = options['disposition']
+              mid_matched = req['Message-ID'] == options['original-message-id']
 
-              # do mic calc using the algorithm specified by server.
-              # (even if we specify sha1, server may send back MIC using a different algo.)
-              received_mic, micalg = options['Received-Content-MIC'].split(',').map(&:strip)
-              # if they don't specify, we'll use a default but it's only a guess & will likely fail.
-              micalg ||= supported_mic_algorithms.first
-              mic = As2::DigestSelector.for_code(micalg).base64digest(document_payload)
-              mic_matched = received_mic == mic
+              mic_matched = false
+              if options['received-content-mic']
+                # do mic calc using the algorithm specified by server.
+                # (even if we specify sha1, server may send back MIC using a different algo.)
+                received_mic, micalg = options['received-content-mic'].split(',').map(&:strip)
+
+                # if they don't specify, we'll use the algorithm we specified in the outbound transmission.
+                # but it's only a guess & may fail.
+                micalg ||= outbound_mic_algorithm
+
+                mic = As2::DigestSelector.for_code(micalg).base64digest(document_payload)
+                mic_matched = received_mic == mic
+              end
             end
           end
         end
