@@ -100,14 +100,19 @@ module As2
         end
 
         if resp.code == '200'
-          response_content = "Content-Type: #{resp['Content-Type']}\r\n#{resp.body}"
-          smime = OpenSSL::PKCS7.read_smime response_content
+          # MDN bodies we've seen so far don't include Content-Type, which causes `read_smime` to fail.
+          response_content = "Content-Type: #{resp['Content-Type'].strip}\r\n\r\n#{resp.body}"
+          smime = OpenSSL::PKCS7.read_smime(response_content)
+
+          # create mail instance before #verify call.
+          # `smime.data` is emptied if verification fails, which means we wouldn't know disposition & other details.
+          mail = Mail.new(smime.data)
+
           # based on As2::Message version
           # TODO: test cases based on valid/invalid responses. (response signed with wrong certificate, etc.)
           smime.verify [@partner.certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN
           signature_verification_error = smime.error_string
 
-          mail = Mail.new smime.data
           mail.parts.each do |part|
             case part.content_type
             when 'text/plain'
