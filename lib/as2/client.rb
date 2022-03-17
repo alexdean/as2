@@ -43,7 +43,7 @@ module As2
     #   and will be included in the SMIME payload. It is not the HTTP Content-Type.
     # @return [As2::Client::Result]
     def send_file(file_name, content: nil, content_type: 'application/EDI-Consent')
-      supported_mic_algorithms = ['sha256', 'sha1']
+      outbound_mic_algorithm = 'sha256'
       outbound_message_id = As2.generate_message_id(@server_info)
 
       req = Net::HTTP::Post.new @partner.url.path
@@ -53,7 +53,7 @@ module As2
       req['Subject'] = 'AS2 Transaction'
       req['Content-Type'] = 'application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m'
       req['Disposition-Notification-To'] = @server_info.url.to_s
-      req['Disposition-Notification-Options'] = "signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional,#{supported_mic_algorithms.join(',')}"
+      req['Disposition-Notification-Options'] = "signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, #{outbound_mic_algorithm}"
       req['Content-Disposition'] = 'attachment; filename="smime.p7m"'
       req['Recipient-Address'] = @server_info.url.to_s
       req['Message-ID'] = outbound_message_id
