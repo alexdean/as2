@@ -22,6 +22,14 @@ module As2
       @server_info = server_info || Config.server_info
     end
 
+    def as2_to
+      @partner.name
+    end
+
+    def as2_from
+      @server_info.name
+    end
+
     # Send a file to a partner
     #
     #   * If the content parameter is omitted, then `file_name` must be a path
@@ -31,26 +39,29 @@ module As2
     #
     # @param [String] file_name
     # @param [String] content
+    # @param [String] content_type This is the MIME Content-Type describing the `content` param,
+    #   and will be included in the SMIME payload. It is not the HTTP Content-Type.
     # @return [As2::Client::Result]
-    def send_file(file_name, content: nil)
+    def send_file(file_name, content: nil, content_type: 'application/EDI-Consent')
+      outbound_mic_algorithm = 'sha256'
       outbound_message_id = As2.generate_message_id(@server_info)
 
       req = Net::HTTP::Post.new @partner.url.path
-      req['AS2-Version'] = '1.2'
-      req['AS2-From'] = @server_info.name
-      req['AS2-To'] = @partner.name
-      req['Subject'] = 'AS2 EDI Transaction'
+      req['AS2-Version'] = '1.0' # 1.1 includes compression support, which we dont implement.
+      req['AS2-From'] = as2_from
+      req['AS2-To'] = as2_to
+      req['Subject'] = 'AS2 Transaction'
       req['Content-Type'] = 'application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m'
+      req['Date'] = Time.now.rfc2822
       req['Disposition-Notification-To'] = @server_info.url.to_s
-      req['Disposition-Notification-Options'] = 'signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, sha1'
+      req['Disposition-Notification-Options'] = "signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, #{outbound_mic_algorithm}"
       req['Content-Disposition'] = 'attachment; filename="smime.p7m"'
-      req['Recipient-Address'] = @server_info.url.to_s
-      req['Content-Transfer-Encoding'] = 'base64'
+      req['Recipient-Address'] = @partner.url.to_s
       req['Message-ID'] = outbound_message_id
 
       document_content = content || File.read(file_name)
 
-      document_payload =  "Content-Type: application/EDI-Consent\r\n"
+      document_payload =  "Content-Type: #{content_type}\r\n"
       document_payload << "Content-Transfer-Encoding: base64\r\n"
       document_payload << "Content-Disposition: attachment; filename=#{file_name}\r\n"
       document_payload << "\r\n"
@@ -59,10 +70,14 @@ module As2
       signature = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, document_payload
       signature.detached = true
       container = OpenSSL::PKCS7.write_smime signature, document_payload
-      encrypted = OpenSSL::PKCS7.encrypt [@partner.certificate], container
-      smime_encrypted = OpenSSL::PKCS7.write_smime encrypted
+      cipher = OpenSSL::Cipher::AES256.new(:CBC) # default, but we might have to make this configurable
+      encrypted = OpenSSL::PKCS7.encrypt [@partner.certificate], container, cipher
 
-      req.body = smime_encrypted.sub(/^.+?\n\n/m, '')
+      # > HTTP can handle binary data and so there is no need to use the
+      # > content transfer encodings of MIME
+      #
+      # https://datatracker.ietf.org/doc/html/rfc4130#section-5.2.1
+      req.body = encrypted.to_der
 
       resp = nil
       signature_verification_error = :not_checked
@@ -73,27 +88,35 @@ module As2
       plain_text_body = nil
 
       begin
+        # note: to pass this traffic through a debugging proxy (like Charles)
+        # set ENV['http_proxy'].
         http = Net::HTTP.new(@partner.url.host, @partner.url.port)
         http.use_ssl = @partner.url.scheme == 'https'
         # http.set_debug_output $stderr
+        # http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+
         http.start do
           resp = http.request(req)
         end
 
         if resp.code == '200'
-          response_content = "Content-Type: #{resp['Content-Type']}\r\n#{resp.body}"
-          smime = OpenSSL::PKCS7.read_smime response_content
+          # MDN bodies we've seen so far don't include Content-Type, which causes `read_smime` to fail.
+          response_content = "Content-Type: #{resp['Content-Type'].strip}\r\n\r\n#{resp.body}"
+          smime = OpenSSL::PKCS7.read_smime(response_content)
+
+          # create mail instance before #verify call.
+          # `smime.data` is emptied if verification fails, which means we wouldn't know disposition & other details.
+          mail = Mail.new(smime.data)
+
           # based on As2::Message version
           # TODO: test cases based on valid/invalid responses. (response signed with wrong certificate, etc.)
           smime.verify [@partner.certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN
           signature_verification_error = smime.error_string
 
-          mail = Mail.new smime.data
           mail.parts.each do |part|
-            case part.content_type
-            when 'text/plain'
-              plain_text_body = part.body
-            when 'message/disposition-notification'
+            if part.content_type.start_with?('text/plain')
+              plain_text_body = part.body.to_s.strip
+            elsif part.content_type.start_with?('message/disposition-notification')
               # "The rules for constructing the AS2-disposition-notification content..."
               # https://datatracker.ietf.org/doc/html/rfc4130#section-7.4.3
 
@@ -101,19 +124,27 @@ module As2
               # TODO: can we use Mail built-ins for this?
               part.body.to_s.lines.each do |line|
                 if line =~ /^([^:]+): (.+)$/
-                  options[$1] = $2
+                  # downcase because we've seen both 'Disposition' and 'disposition'
+                  options[$1.to_s.downcase] = $2
                 end
               end
 
-              disposition = options['Disposition']
-              mid_matched = req['Message-ID'] == options['Original-Message-ID']
+              disposition = options['disposition']
+              mid_matched = req['Message-ID'] == options['original-message-id']
 
-              # do mic calc using the algorithm specified by server.
-              # (even if we specify sha1, server may send back MIC using a different algo.)
-              received_mic, micalg = options['Received-Content-MIC'].split(',').map(&:strip)
-              micalg ||= 'sha1'
-              mic = As2::DigestSelector.for_code(micalg).base64digest(document_payload)
-              mic_matched = received_mic == mic
+              mic_matched = false
+              if options['received-content-mic']
+                # do mic calc using the algorithm specified by server.
+                # (even if we specify sha1, server may send back MIC using a different algo.)
+                received_mic, micalg = options['received-content-mic'].split(',').map(&:strip)
+
+                # if they don't specify, we'll use the algorithm we specified in the outbound transmission.
+                # but it's only a guess & may fail.
+                micalg ||= outbound_mic_algorithm
+
+                mic = As2::DigestSelector.for_code(micalg).base64digest(document_payload)
+                mic_matched = received_mic == mic
+              end
             end
           end
         end

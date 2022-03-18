@@ -72,8 +72,7 @@ describe As2::Client do
       stub_request(:post, @bob_partner.url).to_return do |request|
         # do all the HTTP things that rack would do during a real request
         headers = request.headers.transform_keys {|k| "HTTP_#{k.upcase}".gsub('-', '_') }
-        body = Base64.decode64(request.body)
-        env = Rack::MockRequest.env_for(request.uri.path, headers.merge(input: body))
+        env = Rack::MockRequest.env_for(request.uri.path, headers.merge(input: request.body))
 
         # then hand off the content to @bob_server (which must be defined by the actual tests below)
         status, headers, body = @bob_server.call(env)
@@ -97,6 +96,10 @@ describe As2::Client do
         assert_equal false, result.success
       end
     end
+
+    it "parses an MDN with a 'disposition:' header" # eg: "disposition: automatic-action/MDN-sent-automatically; processed"
+    it "parses an MDN with extended 'Content-Type:'" # eg: 'Content-Type: text/plain; charset="UTF-8"'
+    it "parses an MDN which is missing 'Received-Content-MIC:'"
 
     # these are really 'dogfood' tests using both As2::Client and As2::Server.
     describe 'integration scenarios' do

@@ -8,6 +8,14 @@ describe As2::DigestSelector do
       end
     end
 
+    it 'normalizes common code variants' do
+      expected = OpenSSL::Digest::SHA256
+
+      assert_equal expected, As2::DigestSelector.for_code('sha256')
+      assert_equal expected, As2::DigestSelector.for_code('SHA256')
+      assert_equal expected, As2::DigestSelector.for_code('sha-256')
+    end
+
     # not sure if this is better or if we should raise.
     # current thinking is: "MDN verification failure" > "raising an exception"
     it 'defaults to SHA1 if code is unrecognized' do

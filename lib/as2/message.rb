@@ -80,14 +80,20 @@ module As2
     end
 
     def mic
-      # TODO: could use As2::DigestSelector if a different algo is needed.
-      OpenSSL::Digest::SHA1.base64digest(attachment.raw_source.strip)
+      digest = As2::DigestSelector.for_code(mic_algorithm)
+      digest.base64digest(attachment.raw_source.strip)
+    end
+
+    def mic_algorithm
+      'sha256'
     end
 
     # Return the attached file, use .filename and .body on the return value
     def attachment
       if mail.has_attachments?
-        mail.parts.find{|a| a.content_type == "application/edi-consent"}
+        # TODO: match 'application/edi*', test with 'application/edi-x12'
+        # test also with "application/edi-consent; name=this_is_a_filename.txt"
+        mail.parts.find{ |a| a.content_type.match(/^application\/edi/) }
       else
         mail
       end

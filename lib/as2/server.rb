@@ -55,10 +55,11 @@ module As2
         end
       end
 
-      send_mdn(env, message.mic)
+      send_mdn(env, message.mic, message.mic_algorithm)
     end
 
-    def send_mdn(env, mic, failed = nil)
+    def send_mdn(env, mic, mic_algorithm, failed = nil)
+      # rules for MDN construction are covered in https://datatracker.ietf.org/doc/html/rfc4130#section-7.4.2
       report = MimeGenerator::Part.new
       report['Content-Type'] = 'multipart/report; report-type=disposition-notification'
 
@@ -85,7 +86,7 @@ module As2
       else
         options['Disposition'] = 'automatic-action/MDN-sent-automatically; processed'
       end
-      options['Received-Content-MIC'] = "#{mic}, sha1" if mic
+      options['Received-Content-MIC'] = "#{mic}, #{mic_algorithm}" if mic
       notification.body = options.map{|n, v| "#{n}: #{v}"}.join("\r\n")
       report.add_part notification
 
@@ -120,7 +121,7 @@ module As2
 
     def send_error(env, msg)
       logger(env).error msg
-      send_mdn env, nil, msg
+      send_mdn env, nil, 'sha1', msg
     end
   end
 end
