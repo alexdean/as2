@@ -80,12 +80,8 @@ module As2
       req.body = encrypted.to_der
 
       resp = nil
-      signature_verification_error = :not_checked
       exception = nil
-      mic_matched = nil
-      mid_matched = nil
-      disposition = nil
-      plain_text_body = nil
+      mdn_report = {}
 
       begin
         # note: to pass this traffic through a debugging proxy (like Charles)
@@ -100,53 +96,12 @@ module As2
         end
 
         if resp.code == '200'
-          # MDN bodies we've seen so far don't include Content-Type, which causes `read_smime` to fail.
-          response_content = "Content-Type: #{resp['Content-Type'].strip}\r\n\r\n#{resp.body}"
-          smime = OpenSSL::PKCS7.read_smime(response_content)
-
-          # create mail instance before #verify call.
-          # `smime.data` is emptied if verification fails, which means we wouldn't know disposition & other details.
-          mail = Mail.new(smime.data)
-
-          # based on As2::Message version
-          # TODO: test cases based on valid/invalid responses. (response signed with wrong certificate, etc.)
-          smime.verify [@partner.certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN
-          signature_verification_error = smime.error_string
-
-          mail.parts.each do |part|
-            if part.content_type.start_with?('text/plain')
-              plain_text_body = part.body.to_s.strip
-            elsif part.content_type.start_with?('message/disposition-notification')
-              # "The rules for constructing the AS2-disposition-notification content..."
-              # https://datatracker.ietf.org/doc/html/rfc4130#section-7.4.3
-
-              options = {}
-              # TODO: can we use Mail built-ins for this?
-              part.body.to_s.lines.each do |line|
-                if line =~ /^([^:]+): (.+)$/
-                  # downcase because we've seen both 'Disposition' and 'disposition'
-                  options[$1.to_s.downcase] = $2
-                end
-              end
-
-              disposition = options['disposition']
-              mid_matched = req['Message-ID'] == options['original-message-id']
-
-              mic_matched = false
-              if options['received-content-mic']
-                # do mic calc using the algorithm specified by server.
-                # (even if we specify sha1, server may send back MIC using a different algo.)
-                received_mic, micalg = options['received-content-mic'].split(',').map(&:strip)
-
-                # if they don't specify, we'll use the algorithm we specified in the outbound transmission.
-                # but it's only a guess & may fail.
-                micalg ||= outbound_mic_algorithm
-
-                mic = As2::DigestSelector.for_code(micalg).base64digest(document_payload)
-                mic_matched = received_mic == mic
-              end
-            end
-          end
+          mdn_report = evaluate_mdn(
+                         mdn_content_type: resp['Content-Type'],
+                         mdn_body: resp.body,
+                         original_message_id: req['Message-ID'],
+                         original_body: document_payload
+                       )
         end
       rescue => e
         exception = e
@@ -154,14 +109,78 @@ module As2
 
       Result.new(
         response: resp,
-        mic_matched: mic_matched,
-        mid_matched: mid_matched,
-        body: plain_text_body,
-        disposition: disposition,
-        signature_verification_error: signature_verification_error,
+        mic_matched: mdn_report[:mic_matched],
+        mid_matched: mdn_report[:mid_matched],
+        body: mdn_report[:plain_text_body],
+        disposition: mdn_report[:disposition],
+        signature_verification_error: mdn_report[:signature_verification_error],
         exception: exception,
         outbound_message_id: outbound_message_id
       )
+    end
+
+    def evaluate_mdn(mdn_body:, mdn_content_type:, original_message_id:, original_body:)
+      report = {
+        signature_verification_error: :not_checked,
+        mic_matched: nil,
+        mid_matched: nil,
+        disposition: nil,
+        plain_text_body: nil
+      }
+
+      # MDN bodies we've seen so far don't include Content-Type, which causes `read_smime` to fail.
+      response_content = "Content-Type: #{mdn_content_type.to_s.strip}\r\n\r\n#{mdn_body}"
+
+      if mdn_content_type.start_with?('multipart/signed')
+        smime = OpenSSL::PKCS7.read_smime(response_content)
+
+        # create mail instance before #verify call.
+        # `smime.data` is emptied if verification fails, which means we wouldn't know disposition & other details.
+        mail = Mail.new(smime.data)
+
+        # based on As2::Message version
+        # TODO: test cases based on valid/invalid responses. (response signed with wrong certificate, etc.)
+        smime.verify [@partner.certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN
+        report[:signature_verification_error] = smime.error_string
+      else
+        # MDN may be unsigned if an error occurred, like if we sent an unrecognized As2-From header.
+        mail = Mail.new(response_content)
+      end
+
+      mail.parts.each do |part|
+        if part.content_type.start_with?('text/plain')
+          report[:plain_text_body] = part.body.to_s.strip
+        elsif part.content_type.start_with?('message/disposition-notification')
+          # "The rules for constructing the AS2-disposition-notification content..."
+          # https://datatracker.ietf.org/doc/html/rfc4130#section-7.4.3
+
+          options = {}
+          # TODO: can we use Mail built-ins for this?
+          part.body.to_s.lines.each do |line|
+            if line =~ /^([^:]+): (.+)$/
+              # downcase because we've seen both 'Disposition' and 'disposition'
+              options[$1.to_s.downcase] = $2
+            end
+          end
+
+          report[:disposition] = options['disposition']
+          report[:mid_matched] = original_message_id == options['original-message-id']
+
+          if options['received-content-mic']
+            # do mic calc using the algorithm specified by server.
+            # (even if we specify sha1, server may send back MIC using a different algo.)
+            received_mic, micalg = options['received-content-mic'].split(',').map(&:strip)
+
+            # if they don't specify, we'll use the algorithm we specified in the outbound transmission.
+            # but it's only a guess & may fail.
+            micalg ||= outbound_mic_algorithm
+
+            mic = As2::DigestSelector.for_code(micalg).base64digest(original_body)
+            report[:mic_matched] = received_mic == mic
+          end
+        end
+      end
+      report
     end
   end
 end

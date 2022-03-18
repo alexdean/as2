@@ -93,7 +93,7 @@ describe As2::Client do
 
         assert_equal RuntimeError, result.exception.class
         assert_equal expected_error_message, result.exception.message
-        assert_equal false, result.success
+        assert_nil result.success
       end
     end
 
