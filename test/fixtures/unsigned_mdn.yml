@@ -1,0 +1,23 @@
+---
+code: '200'
+headers:
+  Date: Fri, 18 Mar 2022 17:29:24 CDT
+  Mime-Version: '1.0'
+  Server: mendelson opensource AS2 1.1 build 59 - www.mendelson-e-c.com
+  As2-Version: '1.2'
+  Message-Id: "<mendelson_opensource_AS2-1647642564796-37@CLIENT_SERVER>"
+  Content-Type: "multipart/report; report-type=disposition-notification; \tboundary=\"----=_Part_131_1228550367.1647642564796\""
+  As2-To: SERVER
+  Ediint-Features: multiple-attachments, CEM
+  As2-From: CLIENT
+  Content-Length: '904'
+  Connection: close
+body: "Date: Fri, 18 Mar 2022 17:29:24 -0500 (CDT)\r\n\r\n------=_Part_131_1228550367.1647642564796\r\nContent-Type:
+  text/plain\r\nContent-Transfer-Encoding: 7bit\r\n\r\nThank you for exchanging AS2
+  messages with mendelson opensource AS2.\r\nPlease download your free copy of mendelson
+  opensource AS2 + today at http://opensource.mendelson-e-c.com.\r\n\r\nAn error occured
+  during the AS2 message processing: Sender AS2 id SERVER is unknown.\r\n------=_Part_131_1228550367.1647642564796\r\nContent-Type:
+  message/disposition-notification\r\nContent-Transfer-Encoding: 7bit\r\n\r\nReporting-UA:
+  mendelson opensource AS2\r\nOriginal-Recipient: rfc822; CLIENT\r\nFinal-Recipient:
+  rfc822; CLIENT\r\nOriginal-Message-ID: <SERVER-20220318-222924-774c8348-6372-4f7e-b84f-d7fced6daf58@server.test-ruby-as2.com>\r\nDisposition:
+  automatic-action/MDN-sent-automatically; processed/error: unknown-trading-partner\r\n\r\n------=_Part_131_1228550367.1647642564796--\r\n"
