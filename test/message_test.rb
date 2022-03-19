@@ -54,6 +54,16 @@ describe As2::Message do
       assert_equal "digest failure", message.verification_error
       assert_equal hacked_payload, message.attachment.body.to_s
     end
+
+    it "HACK: works for various 'Content-Transfer-Encoding' settings" do
+      encrypted = File.read('test/fixtures/base64_content_transfer_encoding.pkcs7')
+      message = As2::Message.new(encrypted, @server_key, @server_crt)
+      assert message.valid_signature?(@client_crt)
+
+      encrypted = File.read('test/fixtures/binary_content_transfer_encoding.pkcs7')
+      message = As2::Message.new(encrypted, @server_key, @server_crt)
+      assert message.valid_signature?(@client_crt)
+    end
   end
 
   describe '#mic' do

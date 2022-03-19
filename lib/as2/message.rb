@@ -33,6 +33,28 @@ module As2
         # remove any leading \r\n characters (between headers & body i think).
         content = content.gsub(/\A\s+/, '')
 
+        # HACK: probably shouldn't merge this. just for investigation
+        if mail.parts[0].content_transfer_encoding == 'binary'
+          # observed: signature verification always fails with messages that:
+          #
+          #   1. originate from mendelson server
+          #   2. use 'Content-Transfer-Encoding: binary'.
+          #   3. have at least one "\n" in the content.
+          #
+          # the actual message body we receive has all "\n" replaced by "\r\n".
+          #
+          # if we strip out the extra "\r"s, then signature verification is successful.
+          # doesn't really feel like a solution, since sender could legitimately send "\r\n".
+          #
+          # we can't know if it should/shouldn't be part of the signature w/o trial & error.
+          body_delimiter = "\r\n\r\n"
+          parts = content.split(body_delimiter)
+          headers = parts[0]
+          body = parts[1..].join(body_delimiter)
+          body.gsub!("\r\n", "\n")
+          content = headers + body_delimiter + body
+        end
+
         signature = OpenSSL::PKCS7.new(mail.parts[1].body.to_s)
 
         # using an empty CA store. see notes on NOVERIFY flag below.
