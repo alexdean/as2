@@ -56,6 +56,69 @@ describe As2::Client do
     assert_equal As2::Config.server_info, client.server_info
   end
 
+  describe '#evaluate_mdn' do
+    before do
+      partner = build_partner('CLIENT', credentials: 'client')
+      server_info = build_server_info('SERVER', credentials: 'server')
+      @client = As2::Client.new(partner, server_info: server_info)
+
+      # capture this out-of-band when i wrote the test.
+      @document_payload =  "Content-Type: text/plain\r\n"
+      @document_payload << "Content-Transfer-Encoding: base64\r\n"
+      @document_payload << "Content-Disposition: attachment; filename=test.txt\r\n"
+      @document_payload << "\r\n"
+      @document_payload << Base64.strict_encode64('This is a test message.')
+    end
+
+    it 'handles a signed mdn' do
+      mdn_data = YAML.load(File.read('test/fixtures/signed_mdn.yml'))
+
+      result = @client.evaluate_mdn(
+                 mdn_body: mdn_data['body'],
+                 mdn_content_type: mdn_data['headers']['Content-Type'],
+                 original_message_id: '<SERVER-20220318-222842-b176dc1a-44fd-4f9c-ac61-813fbb0f579a@server.test-ruby-as2.com>',
+                 original_body: @document_payload
+               )
+
+      assert result[:mic_matched]
+      assert result[:mid_matched]
+      assert_nil result[:signature_verification_error]
+      assert_equal 'automatic-action/MDN-sent-automatically; processed', result[:disposition]
+
+      expected_body = "The AS2 message has been received. " \
+        "Thank you for exchanging AS2 messages with mendelson opensource AS2.\n" \
+        "Please download your free copy of mendelson opensource AS2 today at http://opensource.mendelson-e-c.com"
+
+      assert_equal expected_body, result[:plain_text_body]
+    end
+
+    it 'handles an unsigned mdn' do
+      mdn_data = YAML.load(File.read('test/fixtures/unsigned_mdn.yml'))
+
+      result = @client.evaluate_mdn(
+                 mdn_body: mdn_data['body'],
+                 mdn_content_type: mdn_data['headers']['Content-Type'],
+                 original_message_id: '<SERVER-20220318-222924-774c8348-6372-4f7e-b84f-d7fced6daf58@server.test-ruby-as2.com>',
+                 original_body: @document_payload
+               )
+
+      assert_nil result[:mic_matched]
+      assert result[:mid_matched]
+      assert_equal :not_checked, result[:signature_verification_error]
+      assert_equal 'automatic-action/MDN-sent-automatically; processed/error: unknown-trading-partner', result[:disposition]
+
+      expected_body = "Thank you for exchanging AS2 messages with mendelson opensource AS2.\n" \
+        "Please download your free copy of mendelson opensource AS2 + today at http://opensource.mendelson-e-c.com.\n\n" \
+        "An error occured during the AS2 message processing: Sender AS2 id SERVER is unknown."
+
+      assert_equal expected_body, result[:plain_text_body]
+    end
+
+    it "parses an MDN with a lower-case 'disposition:' header" # eg: "disposition: automatic-action/MDN-sent-automatically; processed"
+    it "parses an MDN with extended 'Content-Type:'" # eg: 'Content-Type: text/plain; charset="UTF-8"'
+    it "parses an MDN which is missing 'Received-Content-MIC:'"
+  end
+
   describe '#send_file' do
     before do
       # scenario: Alice is sending a message to Bob.
@@ -93,13 +156,9 @@ describe As2::Client do
 
         assert_equal RuntimeError, result.exception.class
         assert_equal expected_error_message, result.exception.message
-        assert_equal false, result.success
+        assert_nil result.success
       end
     end
-
-    it "parses an MDN with a 'disposition:' header" # eg: "disposition: automatic-action/MDN-sent-automatically; processed"
-    it "parses an MDN with extended 'Content-Type:'" # eg: 'Content-Type: text/plain; charset="UTF-8"'
-    it "parses an MDN which is missing 'Received-Content-MIC:'"
 
     # these are really 'dogfood' tests using both As2::Client and As2::Server.
     describe 'integration scenarios' do
