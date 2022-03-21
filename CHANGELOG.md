@@ -1,3 +1,9 @@
+## 0.5.0, March 21, 2022
+
+  * improvements to `As2::Client`. improve compatibility with non-Mendelson AS2 servers. [#8](https://github.com/andjosh/as2/pull/8)
+  * improve MDN generation, especially when an error occurs. [#9](https://github.com/andjosh/as2/pull/9)
+  * successfully parse unsigned MDNs. [#10](https://github.com/andjosh/as2/pull/10)
+
 ## 0.4.0, March 3, 2022
 
   * client: correct MIC & signature verification when processing MDN response [#7](https://github.com/andjosh/as2/pull/7)
