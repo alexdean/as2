@@ -59,20 +59,8 @@ module As2
     end
 
     def send_mdn(env, mic, mic_algorithm, failed = nil)
-      # rules for MDN construction are covered in https://datatracker.ietf.org/doc/html/rfc4130#section-7.4.2
-      report = MimeGenerator::Part.new
-      report['Content-Type'] = 'multipart/report; report-type=disposition-notification'
-
-      text = MimeGenerator::Part.new
-      text['Content-Type'] = 'text/plain'
-      text['Content-Transfer-Encoding'] = '7bit'
-      text.body = "The AS2 message has been received successfully"
-
-      report.add_part text
-
-      notification = MimeGenerator::Part.new
-      notification['Content-Type'] = 'message/disposition-notification'
-      notification['Content-Transfer-Encoding'] = '7bit'
+      # rules for MDN construction are covered in
+      # https://datatracker.ietf.org/doc/html/rfc4130#section-7.4.2
 
       options = {
         'Reporting-UA' => @server_info.name,
@@ -83,10 +71,25 @@ module As2
       if failed
         options['Disposition'] = 'automatic-action/MDN-sent-automatically; failed'
         options['Failure'] = failed
+        text_body = "There was an error with the AS2 transmission.\r\n\r\n#{failed}"
       else
         options['Disposition'] = 'automatic-action/MDN-sent-automatically; processed'
+        text_body = "The AS2 message has been received successfully"
       end
       options['Received-Content-MIC'] = "#{mic}, #{mic_algorithm}" if mic
+
+      report = MimeGenerator::Part.new
+      report['Content-Type'] = 'multipart/report; report-type=disposition-notification'
+
+      text = MimeGenerator::Part.new
+      text['Content-Type'] = 'text/plain'
+      text['Content-Transfer-Encoding'] = '7bit'
+      text.body = text_body
+      report.add_part text
+
+      notification = MimeGenerator::Part.new
+      notification['Content-Type'] = 'message/disposition-notification'
+      notification['Content-Transfer-Encoding'] = '7bit'
       notification.body = options.map{|n, v| "#{n}: #{v}"}.join("\r\n")
       report.add_part notification
 
@@ -99,15 +102,16 @@ module As2
       smime_signed = OpenSSL::PKCS7.write_smime pkcs7, msg_out.string
 
       content_type = smime_signed[/^Content-Type: (.+?)$/m, 1]
-      smime_signed.sub!(/\A.+?^(?=---)/m, '')
+      # smime_signed.sub!(/\A.+?^(?=---)/m, '')
 
       headers = {}
       headers['Content-Type'] = content_type
+      # TODO: if MIME-Version header is actually needed, should extract it out of smime_signed.
       headers['MIME-Version'] = '1.0'
       headers['Message-ID'] = As2.generate_message_id(@server_info)
       headers['AS2-From'] = @server_info.name
       headers['AS2-To'] = env['HTTP_AS2_FROM']
-      headers['AS2-Version'] = '1.2'
+      headers['AS2-Version'] = '1.0'
       headers['Connection'] = 'close'
 
       [200, headers, ["\r\n" + smime_signed]]
