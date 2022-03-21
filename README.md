@@ -30,12 +30,10 @@ along.
        will see a MIC verification failure. AS2 RFC specifically prefers sha1 and
        mentions md5. Mendelson AS2 server supports a number of other algorithms.
        (sha256, sha512, etc)
-  2. Payload bodies (typically EDI files) can be binary or base64 encoded. We
-     error if the body is not base64-encoded.
-  3. Payload bodies can have a few different mime types. We expect only
-     `application/EDI-Consent`. We're unable to receive content that has any other
+  2. Payload bodies can have a few different mime types. We expect a type that
+     matches `application/EDI-*`. We're unable to receive content that has any other
      mime type. https://datatracker.ietf.org/doc/html/rfc1767#section-1
-  4. AS2 partners may agree to use separate certificates for data encryption and data signing.
+  3. AS2 partners may agree to use separate certificates for data encryption and data signing.
      We do not support separate certificates for these purposes.
 
 ## Installation
