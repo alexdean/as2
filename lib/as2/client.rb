@@ -95,7 +95,7 @@ module As2
           resp = http.request(req)
         end
 
-        if resp.code == '200'
+        if resp && resp.code.start_with?('2')
           mdn_report = evaluate_mdn(
                          mdn_content_type: resp['Content-Type'],
                          mdn_body: resp.body,
