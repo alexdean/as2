@@ -1,3 +1,7 @@
+## 0.5.1, August 10, 2022
+
+  * Any HTTP 2xx status received from a partner should be considered successful. [#12](https://github.com/andjosh/as2/pull/12)
+
 ## 0.5.0, March 21, 2022
 
   * improvements to `As2::Client`. improve compatibility with non-Mendelson AS2 servers. [#8](https://github.com/andjosh/as2/pull/8)
