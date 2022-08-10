@@ -1,5 +1,39 @@
 require 'test_helper'
 
+# TODO: get rid of instance variables in client integration test scenarios.
+#
+#   1. convert instance variables to method parameters in this method
+#      (extend what's done here for http_response_status)
+#   2. return a hash with data needed by individual tests
+def setup_integration_scenario(
+  http_response_status: nil
+)
+  # scenario: Alice is sending a message to Bob.
+  @alice_partner = build_partner('ALICE', credentials: 'client')
+  @alice_server_info = build_server_info('ALICE', credentials: 'client')
+
+  @bob_partner = build_partner('BOB', credentials: 'server')
+  @bob_server_info = build_server_info('BOB', credentials: 'server')
+
+  @alice_client = As2::Client.new(@bob_partner, server_info: @alice_server_info)
+  # individual tests will provide a different @bob_server if they want to assert on its behavior
+  @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner)
+
+  WebMock.stub_request(:post, @bob_partner.url).to_return do |request|
+    # do all the HTTP things that rack would do during a real request
+    headers = request.headers.transform_keys {|k| "HTTP_#{k.upcase}".gsub('-', '_') }
+    env = Rack::MockRequest.env_for(request.uri.path, headers.merge(input: request.body))
+
+    # then hand off the content to @bob_server (which must be defined by the actual tests below)
+    status, headers, body = @bob_server.call(env)
+    {
+      status: http_response_status || status,
+      headers: headers,
+      body: body.first
+    }
+  end
+end
+
 describe As2::Client do
   after do
     As2.reset_config!
@@ -120,34 +154,44 @@ describe As2::Client do
   end
 
   describe '#send_file' do
-    before do
-      # scenario: Alice is sending a message to Bob.
-      @alice_partner = build_partner('ALICE', credentials: 'client')
-      @alice_server_info = build_server_info('ALICE', credentials: 'client')
+    it 'considers a 2xx response code to be successful' do
+      setup_integration_scenario(http_response_status: '202')
 
-      @bob_partner = build_partner('BOB', credentials: 'server')
-      @bob_server_info = build_server_info('BOB', credentials: 'server')
+      file_name_received_by_bob = nil
+      file_content_received_by_bob = nil
 
-      @alice_client = As2::Client.new(@bob_partner, server_info: @alice_server_info)
-      # individual tests will provide a different @bob_server if they want to assert on its behavior
-      @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner)
+      @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner) do |file_name, body|
+                      file_name_received_by_bob = file_name
+                      file_content_received_by_bob = body.to_s
+                    end
 
-      stub_request(:post, @bob_partner.url).to_return do |request|
-        # do all the HTTP things that rack would do during a real request
-        headers = request.headers.transform_keys {|k| "HTTP_#{k.upcase}".gsub('-', '_') }
-        env = Rack::MockRequest.env_for(request.uri.path, headers.merge(input: request.body))
+      result = @alice_client.send_file('data.txt', content: File.read('test/fixtures/message.txt'))
 
-        # then hand off the content to @bob_server (which must be defined by the actual tests below)
-        status, headers, body = @bob_server.call(env)
-        {
-          status: status,
-          headers: headers,
-          body: body.first
-        }
-      end
+      assert_equal As2::Client::Result, result.class
+      assert result.success
+    end
+
+    it 'considers a 5xx response code to be an error' do
+      setup_integration_scenario(http_response_status: '500')
+
+      file_name_received_by_bob = nil
+      file_content_received_by_bob = nil
+
+      @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner) do |file_name, body|
+                      file_name_received_by_bob = file_name
+                      file_content_received_by_bob = body.to_s
+                    end
+
+      result = @alice_client.send_file('data.txt', content: File.read('test/fixtures/message.txt'))
+
+      assert_equal As2::Client::Result, result.class
+      assert_equal Net::HTTPServerError, result.response.code_type
+      assert !result.success
     end
 
     it 'captures and returns any exception raised while processing MDN response' do
+      setup_integration_scenario
+
       expected_error_message = "error parsing attachment"
       mail_replacment = ->(*args) { raise expected_error_message }
 
@@ -166,6 +210,8 @@ describe As2::Client do
 
       describe 'when file_content is given' do
         it 'sends the given file content' do
+          setup_integration_scenario
+
           file_name_received_by_bob = nil
           file_content_received_by_bob = nil
 
@@ -188,9 +234,13 @@ describe As2::Client do
       end
 
       describe 'when file content has newlines' do
+        setup_integration_scenario
+
         # we do some gsub string manipulation in a few places in As2::Client
         # want to be sure this isn't affecting what is actually transmitted.
         it 'sends content correctly' do
+          setup_integration_scenario
+
           file_name_received_by_bob = nil
           file_content_received_by_bob = nil
 
@@ -217,6 +267,8 @@ describe As2::Client do
 
       describe 'when file_content is nil' do
         it 'reads content from file_name' do
+          setup_integration_scenario
+
           file_name_received_by_bob = nil
           file_content_received_by_bob = nil
 
@@ -249,6 +301,8 @@ describe As2::Client do
         # lower-priority issue since EDI is all ASCII, but worth being aware of & fixing at some point.
         # maybe Server could accept a parameter which tells us which character encoding to use?
         it 'is not mangled too horribly' do
+          setup_integration_scenario
+
           file_name_received_by_bob = nil
           file_content_received_by_bob = nil
 
