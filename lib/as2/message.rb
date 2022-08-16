@@ -11,7 +11,7 @@ module As2
 
        # if there are multiple content parts, try to prefer the EDI content.
       candidates = mail_parts
-                   .select { |part| part.content_type != 'application/pkcs7-signature' } # skip signature
+                   .select { |part| part.content_type.to_s['pkcs7-signature'].nil? } # skip signature
                    .sort_by { |part| part.content_type.match(/^application\/edi/) ? 0 : 1 }
       candidates[0]
     end

@@ -114,6 +114,28 @@ describe As2::Message do
       assert_nil chosen
     end
 
+    it 'skips x-pkcs7-signature also' do
+      decrypted_message = <<~EOF
+      Content-Type: multipart/signed; protocol="application/x-pkcs7-signature"; micalg="sha-256"; \tboundary="----855604ACC1530DC371EC9487F598CF78"
+
+      ------855604ACC1530DC371EC9487F598CF78
+      Content-Type: application/octet-stream
+
+      This is text content.
+      ------855604ACC1530DC371EC9487F598CF78
+      Content-Type: application/x-pkcs7-signature; name="smime.p7s"
+      Content-Transfer-Encoding: base64
+      Content-Disposition: attachment; filename="smime.p7s"
+
+      blah blah blah blah
+      ------855604ACC1530DC371EC9487F598CF78--
+      EOF
+
+      mail = Mail.new(decrypted_message)
+      chosen = As2::Message.choose_attachment(mail.parts)
+
+      assert_equal "This is text content.", chosen.body.to_s
+    end
   end
 
   describe '#decrypted_message' do
@@ -175,8 +197,22 @@ describe As2::Message do
     it 'provides the inbound message as a Mail::Part' do
       attachment = @message.attachment
       assert_equal attachment.class, Mail::Part
+      assert_equal attachment.content_type, 'application/edi-consent'
       assert_equal @correct_cleartext, attachment.body.decoded
       assert_equal "hello_world_2.txt", attachment.filename
+    end
+
+    it 'chooses a non-edi part if no edi parts are available' do
+      encrypted_message = File.read('test/fixtures/non_edi_content.pkcs7')
+      correct_cleartext = "this is a message\n\n"
+
+      message = As2::Message.new(encrypted_message, @server_key, @server_crt)
+      attachment = message.attachment
+
+      assert_equal attachment.class, Mail::Part
+      assert_equal attachment.content_type, 'application/octet-stream'
+      assert_equal correct_cleartext, attachment.body.to_s
+      assert_equal nil, attachment.filename
     end
   end
 end
