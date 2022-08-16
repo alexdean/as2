@@ -35,6 +35,17 @@ describe As2::Config do
         assert_equal @partner_config.certificate, cert_instance
       end
     end
+
+    describe '#server_mdn_normalize_x_pkcs7_signature' do
+      it 'is nil by default' do
+        assert_nil @partner_config.server_mdn_normalize_x_pkcs7_signature
+      end
+
+      it 'can be configured' do
+        @partner_config.server_mdn_normalize_x_pkcs7_signature = true
+        assert @partner_config.server_mdn_normalize_x_pkcs7_signature
+      end
+    end
   end
 
   describe 'ServerInfo' do

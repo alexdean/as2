@@ -98,5 +98,34 @@ describe As2::Server do
       assert_equal expected_plain_text.strip, plain_text.body.to_s.strip
       assert_equal expected_notification.strip, notification.body.to_s.strip
     end
+
+    describe 'mdn_normalize_x_pkcs7_signature option' do
+      it 'leaves the x- by default' do
+        env = {
+          'HTTP_MESSAGE_ID' => '<message@server>',
+          'HTTP_AS2_FROM' => 'ALICE'
+        }
+        status, headers, body = @server.send_mdn(env, 'micmicmic', 'sha256')
+
+        assert headers['Content-Type']['application/x-pkcs7-signature']
+        assert body[0]['Content-Type: application/x-pkcs7-signature']
+        assert_nil body[0]['Content-Type: application/pkcs7-signature']
+      end
+
+      it 'removes the x- if requested' do
+        @partner.server_mdn_normalize_x_pkcs7_signature = true
+        @server = As2::Server.new(server_info: @server_info, partner: @partner)
+
+        env = {
+          'HTTP_MESSAGE_ID' => '<message@server>',
+          'HTTP_AS2_FROM' => 'ALICE'
+        }
+        status, headers, body = @server.send_mdn(env, 'micmicmic', 'sha256')
+
+        assert headers['Content-Type']['application/pkcs7-signature']
+        assert body[0]['Content-Type: application/pkcs7-signature']
+        assert_nil body[0]['Content-Type: application/x-pkcs7-signature']
+      end
+    end
   end
 end

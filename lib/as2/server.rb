@@ -104,6 +104,13 @@ module As2
       content_type = smime_signed[/^Content-Type: (.+?)$/m, 1]
       # smime_signed.sub!(/\A.+?^(?=---)/m, '')
 
+      # some partners don't understand.
+      # i think newer openssl will use just pkcs7-signature.
+      if @partner.server_mdn_normalize_x_pkcs7_signature
+        content_type.sub!('x-pkcs7-signature', 'pkcs7-signature')
+        smime_signed.gsub!('x-pkcs7-signature', 'pkcs7-signature')
+      end
+
       headers = {}
       headers['Content-Type'] = content_type
       # TODO: if MIME-Version header is actually needed, should extract it out of smime_signed.
