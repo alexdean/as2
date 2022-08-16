@@ -12,7 +12,9 @@ module As2
       end
     end
 
-    class Partner < Struct.new :name, :url, :certificate
+    # @param [Bool] server_mdn_normalize_x_pkcs7_signature Should we transform 'application/x-pkcs7-signature' to 'application/pkcs7-signature'
+    #   when building MDNs? Some partners don't understand 'application/x-pkcs7-signature'.
+    class Partner < Struct.new :name, :url, :certificate, :server_mdn_normalize_x_pkcs7_signature
       def url=(url)
         if url.kind_of? String
           self['url'] = URI.parse url

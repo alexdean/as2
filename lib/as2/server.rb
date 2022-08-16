@@ -106,7 +106,7 @@ module As2
 
       # some partners don't understand.
       # i think newer openssl will use just pkcs7-signature.
-      if @partner.server_mdn_normalize_x_pkcs7_signature
+      if @partner&.server_mdn_normalize_x_pkcs7_signature
         content_type.sub!('x-pkcs7-signature', 'pkcs7-signature')
         smime_signed.gsub!('x-pkcs7-signature', 'pkcs7-signature')
       end
