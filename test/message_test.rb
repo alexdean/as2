@@ -19,6 +19,30 @@ describe As2::Message do
       assert_nil As2::Message.choose_attachment([])
     end
 
+    it 'does not break if parts do not have content types' do
+      decrypted_message = <<~EOF
+      Content-Type: multipart/signed; protocol="application/pkcs7-signature"; micalg=sha1; boundary="1660166778989-boundary"
+
+      --1660166778989-boundary
+
+      This is text content.
+
+
+      --1660166778989-boundary
+
+      ISA*TOTALLY*LEGAL*EDI~
+
+      --1660166778989-boundary
+
+      blah blah blah blah
+      --1660166778989-boundary
+      EOF
+
+      mail = Mail.new(decrypted_message)
+      chosen = As2::Message.choose_attachment(mail.parts)
+      assert "This is text content.\n\n", chosen.body.to_s
+    end
+
     it 'chooses an EDI part if available' do
       decrypted_message = <<~EOF
       Content-Type: multipart/signed; protocol="application/pkcs7-signature"; micalg=sha1; boundary="1660166778989-boundary"
@@ -47,11 +71,12 @@ describe As2::Message do
       assert_equal "ISA*TOTALLY*LEGAL*EDI~\n", chosen.body.to_s
 
       ## reversing order of EDI & text parts, to make sure we have sorting right.
+      ## also ensuring case-insensitive matching.
       decrypted_message = <<~EOF
       Content-Type: multipart/signed; protocol="application/pkcs7-signature"; micalg=sha1; boundary="1660166778989-boundary"
 
       --1660166778989-boundary
-      Content-Type: application/edi-x12
+      Content-Type: application/EDI-X12
 
       ISA*TOTALLY*LEGAL*EDI~
 
