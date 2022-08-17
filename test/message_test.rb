@@ -212,7 +212,7 @@ describe As2::Message do
       assert_equal attachment.class, Mail::Part
       assert_equal attachment.content_type, 'application/octet-stream'
       assert_equal correct_cleartext, attachment.body.to_s
-      assert_equal nil, attachment.filename
+      assert_nil attachment.filename
     end
   end
 end
