@@ -16,12 +16,19 @@ module As2
       candidates[0]
     end
 
-    def initialize(message, private_key, public_certificate)
-      # TODO: might need to use OpenSSL::PKCS7.read_smime rather than .new sometimes
-      @pkcs7 = OpenSSL::PKCS7.new(message)
+    def initialize(message, private_key, public_certificate, encoding: :binary, mic_algorithm: 'sha256')
+      if encoding == :binary
+        @pkcs7 = OpenSSL::PKCS7.new(message)
+      elsif encoding == :base64
+        @pkcs7 = OpenSSL::PKCS7.read_smime(message)
+      else
+        raise "invalid encoding type. must be :binary or :base64."
+      end
+
       @private_key = private_key
       @public_certificate = public_certificate
       @verification_error = nil
+      @mic_algorithm = mic_algorithm
     end
 
     def decrypted_message
@@ -99,7 +106,11 @@ module As2
     end
 
     def mic_algorithm
-      'sha256'
+      if As2::DigestSelector.valid_codes.include?(@mic_algorithm)
+        @mic_algorithm
+      else
+        'sha256'
+      end
     end
 
     # Return the attached file, use .filename and .body on the return value
