@@ -2,6 +2,20 @@ module As2
   class Message
     attr_reader :verification_error
 
+    # given multiple parts of a message, choose the one most likely to be the actual content we care about
+    #
+    # @param [Array<Mail::Part>]
+    # @return [Mail::Part, nil]
+    def self.choose_attachment(mail_parts)
+      return nil if mail_parts.nil?
+
+       # if there are multiple content parts, try to prefer the EDI content.
+      candidates = mail_parts
+                   .select { |part| part.content_type.to_s['pkcs7-signature'].nil? } # skip signature
+                   .sort_by { |part| part.content_type.to_s.match(/^application\/edi/i) ? 0 : 1 }
+      candidates[0]
+    end
+
     def initialize(message, private_key, public_certificate)
       # TODO: might need to use OpenSSL::PKCS7.read_smime rather than .new sometimes
       @pkcs7 = OpenSSL::PKCS7.new(message)
@@ -90,13 +104,11 @@ module As2
 
     # Return the attached file, use .filename and .body on the return value
     def attachment
-      if mail.has_attachments?
-        # TODO: match 'application/edi*', test with 'application/edi-x12'
-        # test also with "application/edi-consent; name=this_is_a_filename.txt"
-        mail.parts.find{ |a| a.content_type.match(/^application\/edi/) }
-      else
-        mail
-      end
+      self.class.choose_attachment(parts)
+    end
+
+    def parts
+      mail&.parts
     end
 
     private
