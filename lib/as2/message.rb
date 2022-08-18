@@ -16,6 +16,14 @@ module As2
       candidates[0]
     end
 
+    # @param [Mail::Part] attachment
+    # @param [String] mic_algorithm
+    # @return [String] message integrity check string
+    def self.mic(attachment, mic_algorithm)
+      digest = As2::DigestSelector.for_code(mic_algorithm)
+      digest.base64digest(attachment.raw_source.lstrip)
+    end
+
     def initialize(message, private_key, public_certificate)
       # TODO: might need to use OpenSSL::PKCS7.read_smime rather than .new sometimes
       @pkcs7 = OpenSSL::PKCS7.new(message)
@@ -94,8 +102,7 @@ module As2
     end
 
     def mic
-      digest = As2::DigestSelector.for_code(mic_algorithm)
-      digest.base64digest(attachment.raw_source.strip)
+      self.class.mic(attachment, mic_algorithm)
     end
 
     def mic_algorithm

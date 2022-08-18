@@ -163,6 +163,53 @@ describe As2::Message do
     end
   end
 
+  describe '.mic' do
+    # expected MIC values collected by running OpenAS2 locally & examining logs
+    #
+    #  1. these refer to using (for example) `<attribute name="content_transfer_encoding" value="binary"/>`
+    #     in the OpenAS2 partnership configuration. the Content-Transfer-Encoding here is only specified in
+    #     the S/MIME part. The HTTP body is always binary and no HTTP Content-Transfer-Encoding header is set.
+    #  2. examples were run with OpenAS2 configuration `<attribute name="prevent_canonicalization_for_mic" value="false"/>`
+    describe 'with OpenAS2' do
+      it 'creates correct MIC value when partner is using "Content-Transfer-Encoding: binary"' do
+        raw_source = "\r\nContent-Type: application/EDI-X12\r\nContent-Transfer-Encoding: binary\r\nContent-Disposition: Attachment; filename=\"message.txt\"\r\n\r\nhi\n"
+        mail_part = Mail::Part.new(raw_source)
+        assert_equal 'JhDUnVTSRY5N+kvBbZwVxTbw+CGjHWPIFkse+CpT/2M=', As2::Message.mic(mail_part, 'sha256')
+
+        raw_source = "\r\nContent-Type: application/EDI-X12\r\nContent-Transfer-Encoding: binary\r\nContent-Disposition: Attachment; filename=\"message.txt\"\r\n\r\nmessage\nwith\nnewlines\n"
+        mail_part = Mail::Part.new(raw_source)
+        assert_equal 'F0BUXjqg/awvPSIvSshQLSJyZaPg9G+z/0cEwufIb0E=', As2::Message.mic(mail_part, 'sha256')
+
+        raw_source = "\r\nContent-Type: application/EDI-X12\r\nContent-Transfer-Encoding: binary\r\nContent-Disposition: Attachment; filename=\"blues_brothers.txt\"\r\n\r\n106 miles to Chicago\n"
+        mail_part = Mail::Part.new(raw_source)
+        assert_equal 'S1wmuKWg6c18/oAvu2joa42lHHI=', As2::Message.mic(mail_part, 'sha1')
+      end
+
+      it 'creates correct MIC value when partner is using "Content-Transfer-Encoding: base64"' do
+        raw_source = "\r\nContent-Type: application/EDI-X12\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: Attachment; filename=\"message.txt\"\r\n\r\naGkK"
+        mail_part = Mail::Part.new(raw_source)
+        assert_equal 'lmB+692bTgwxwuaaf6ObFx7w0DdVKYXJmr14RUO5/l8=', As2::Message.mic(mail_part, 'sha256')
+      end
+    end
+
+    describe 'with Mendelson' do
+      # as with OpenAS2, "Content-Transfer-Encoding: base64" refers only to the S/MIME message part
+      # Menedelson server sends a binary HTTP body with no HTTP Content-Transfer-Encoding header
+      it 'creates correct MIC value when partner is using "Content-Transfer-Encoding: base64"' do
+        raw_source = "\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=message.txt\r\n\r\naGVsbG8K"
+        mail_part = Mail::Part.new(raw_source)
+        assert_equal '2l+fd1V8RsWLn6d27QVskwTc7AM=', As2::Message.mic(mail_part, 'sha1')
+
+        raw_source = "\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=message.txt\r\n\r\ndGhpcwptZXNzYWdlCmhhcwptYW55Cm5ld2xpbmVzCmluZGVlZAo="
+        mail_part = Mail::Part.new(raw_source)
+        assert_equal 'iW+hN8iJrfkyplf2/8wpRtGsH+rg11o12XwTFruiUWw=', As2::Message.mic(mail_part, 'sha256')
+      end
+
+      # currently we aren't able to exchange messages with Mendelson server using Content-Transfer-Encoding: binary
+      # See https://github.com/andjosh/as2/pull/11
+    end
+  end
+
   describe '#decrypted_message' do
     it 'returns a decrypted smime message' do
       decrypted = @message.decrypted_message
