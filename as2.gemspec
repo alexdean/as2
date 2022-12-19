@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
 
   spec.summary       = %q{Simple AS2 server and client implementation}
   spec.description   = %q{Simple AS2 server and client implementation. Follows the AS2 implementation from http://as2.mendelson-e-c.com}
-  spec.homepage      = "https://github.com/andjosh/as2"
+  spec.homepage      = "https://github.com/alexdean/as2"
   spec.license       = "MIT"
 
   # Prevent pushing this gem to RubyGems.org by setting 'allowed_push_host', or
