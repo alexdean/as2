@@ -24,12 +24,57 @@ module As2
       digest.base64digest(attachment.raw_source.lstrip)
     end
 
+    def self.verify(content:, signature_text:, certificate:)
+      signature = OpenSSL::PKCS7.new(signature_text)
+
+      # using an empty CA store. see notes on NOVERIFY flag below.
+      store = OpenSSL::X509::Store.new
+
+      # notes on verification proces and flags used
+      #
+      # ## NOINTERN
+      #
+      # > If PKCS7_NOINTERN is set the certificates in the message itself are
+      # > not searched when locating the signer's certificate. This means that
+      # > all the signers certificates must be in the certs parameter.
+      #
+      # > One application of PKCS7_NOINTERN is to only accept messages signed
+      # > by a small number of certificates. The acceptable certificates would
+      # > be passed in the certs parameter. In this case if the signer is not
+      # > one of the certificates supplied in certs then the verify will fail
+      # > because the signer cannot be found.
+      #
+      # https://www.openssl.org/docs/manmaster/man3/PKCS7_verify.html
+      #
+      # we want this so we can be sure that the `partner_certificate` we supply
+      # was actually used to sign the message. otherwise we could get a positive
+      # verification even if `partner_certificate` didn't sign the message
+      # we're checking.
+      #
+      # ## NOVERIFY
+      #
+      # > If PKCS7_NOVERIFY is set the signer's certificates are not chain verified.
+      #
+      # ie: we won't attempt to connect signer (in the first param) to a root
+      # CA (in `store`, which is empty). alternately, we could instead remove
+      # this flag, and add `partner_certificate` to `store`. but what's the point?
+      # we'd only be verifying that `partner_certificate` is connected to `partner_certificate`.
+      valid = signature.verify([certificate], store, content, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN)
+
+      {
+        valid: valid,
+        # when `signature.verify` fails, signature.error_string will be populated.
+        error: signature.error_string
+      }
+    end
+
     def initialize(message, private_key, public_certificate)
       # TODO: might need to use OpenSSL::PKCS7.read_smime rather than .new sometimes
       @pkcs7 = OpenSSL::PKCS7.new(message)
       @private_key = private_key
       @public_certificate = public_certificate
       @verification_error = nil
+      @updated_body_due_to_lineending_workaround = nil
     end
 
     def decrypted_message
@@ -55,66 +100,47 @@ module As2
         # remove any leading \r\n characters (between headers & body i think).
         content = content.gsub(/\A\s+/, '')
 
-        # HACK: probably shouldn't merge this. just for investigation
-        if mail.parts[0].content_transfer_encoding == 'binary'
-          # observed: signature verification always fails with messages that:
-          #
-          #   1. originate from mendelson server
-          #   2. use 'Content-Transfer-Encoding: binary'.
-          #   3. have at least one "\n" in the content.
-          #
-          # the actual message body we receive has all "\n" replaced by "\r\n".
-          #
-          # if we strip out the extra "\r"s, then signature verification is successful.
-          # doesn't really feel like a solution, since sender could legitimately send "\r\n".
-          #
-          # we can't know if it should/shouldn't be part of the signature w/o trial & error.
+        signature_text = mail.parts[1].body.to_s
+
+        result = self.class.verify(
+                                    content: content,
+                                    signature_text: signature_text,
+                                    certificate: partner_certificate
+                                  )
+
+        output = result[:valid]
+        @verification_error = result[:error]
+
+        # HACK workaround fix for https://github.com/mikel/mail/pull/1511
+        #
+        # due to a bug in the mail gem, the actual message body we receive can
+        # have all "\n" replaced by "\r\n" when using 'Content-Transfer-Encoding: binary'.
+        # if we line endings back to "\n", then signature verification is successful.
+        # this entire block can be removed once that is released & integrated into as2.
+        #
+        # we don't really know that verification failed due to line-ending mismatch.
+        # it's only a guess.
+        if !output && mail.parts[0].content_transfer_encoding == 'binary'
           body_delimiter = "\r\n\r\n"
           parts = content.split(body_delimiter)
           headers = parts[0]
           body = parts[1..].join(body_delimiter)
           body.gsub!("\r\n", "\n")
           content = headers + body_delimiter + body
+
+          signature = OpenSSL::PKCS7.new(mail.parts[1].body.to_s)
+          retry_output = self.class.verify(
+                                            content: content,
+                                            signature_text: signature_text,
+                                            certificate: partner_certificate
+                                          )
+
+          if retry_output[:valid]
+            @updated_body_due_to_lineending_workaround = content
+            output = retry_output[:valid]
+            @verification_error = retry_output[:error]
+          end
         end
-
-        signature = OpenSSL::PKCS7.new(mail.parts[1].body.to_s)
-
-        # using an empty CA store. see notes on NOVERIFY flag below.
-        store = OpenSSL::X509::Store.new
-
-        # notes on verification proces and flags used
-        #
-        # ## NOINTERN
-        #
-        # > If PKCS7_NOINTERN is set the certificates in the message itself are
-        # > not searched when locating the signer's certificate. This means that
-        # > all the signers certificates must be in the certs parameter.
-        #
-        # > One application of PKCS7_NOINTERN is to only accept messages signed
-        # > by a small number of certificates. The acceptable certificates would
-        # > be passed in the certs parameter. In this case if the signer is not
-        # > one of the certificates supplied in certs then the verify will fail
-        # > because the signer cannot be found.
-        #
-        # https://www.openssl.org/docs/manmaster/man3/PKCS7_verify.html
-        #
-        # we want this so we can be sure that the `partner_certificate` we supply
-        # was actually used to sign the message. otherwise we could get a positive
-        # verification even if `partner_certificate` didn't sign the message
-        # we're checking.
-        #
-        # ## NOVERIFY
-        #
-        # > If PKCS7_NOVERIFY is set the signer's certificates are not chain verified.
-        #
-        # ie: we won't attempt to connect signer (in the first param) to a root
-        # CA (in `store`, which is empty). alternately, we could instead remove
-        # this flag, and add `partner_certificate` to `store`. but what's the point?
-        # we'd only be verifying that `partner_certificate` is connected to `partner_certificate`.
-        output = signature.verify([partner_certificate], store, content, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN)
-
-        # when `signature.verify` fails, signature.error_string will be populated.
-        @verification_error = signature.error_string
 
         output
       else
@@ -124,7 +150,13 @@ module As2
     end
 
     def mic
-      self.class.mic(attachment, mic_algorithm)
+      if @updated_body_due_to_lineending_workaround
+        body_part = Mail::Part.new(@updated_body_due_to_lineending_workaround)
+      else
+        body_part = attachment
+      end
+
+      self.class.mic(body_part, mic_algorithm)
     end
 
     def mic_algorithm

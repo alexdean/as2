@@ -1,5 +1,6 @@
 require 'test_helper'
 require 'base64'
+require 'pry'
 
 describe As2::Message do
   before do
@@ -205,8 +206,11 @@ describe As2::Message do
         assert_equal 'iW+hN8iJrfkyplf2/8wpRtGsH+rg11o12XwTFruiUWw=', As2::Message.mic(mail_part, 'sha256')
       end
 
-      # currently we aren't able to exchange messages with Mendelson server using Content-Transfer-Encoding: binary
-      # See https://github.com/andjosh/as2/pull/11
+      it 'creates correct MIC value when partner is using "Content-Transfer-Encoding: binary"' do
+        raw_source = "\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: binary\r\nContent-Disposition: attachment; filename=n_padded.txt\r\n\r\n\na test message\nseparated by\nsingle newline char\n"
+        mail_part = Mail::Part.new(raw_source)
+        assert_equal 'HFxKApuTnevgyutbKWWfOc2sUh+yKpoQyIoOr00IFmI=', As2::Message.mic(mail_part, 'sha256')
+      end
     end
   end
 
@@ -252,19 +256,21 @@ describe As2::Message do
       assert_equal hacked_payload, message.attachment.body.to_s
     end
 
-    it "HACK: works for various 'Content-Transfer-Encoding' settings" do
+    it "works for various 'Content-Transfer-Encoding' settings" do
       encrypted = File.read('test/fixtures/base64_content_transfer_encoding.pkcs7')
       message = As2::Message.new(encrypted, @server_key, @server_crt)
       assert message.valid_signature?(@client_crt)
 
       encrypted = File.read('test/fixtures/binary_content_transfer_encoding.pkcs7')
       message = As2::Message.new(encrypted, @server_key, @server_crt)
+
       assert message.valid_signature?(@client_crt)
     end
   end
 
   describe '#mic' do
     it 'returns a message integrity check value' do
+
       assert_equal @message.mic, "7S8fpWpx+ASDj0sCAIfS64Q+sm0ezIpDLhPs9wIEy8I="
     end
   end
