@@ -6,7 +6,7 @@ Tested with the mendelson AS2 implementation from http://as2.mendelson-e-c.com
 
 ## Build Status
 
-[![Test Suite](https://github.com/andjosh/as2/actions/workflows/test.yml/badge.svg)](https://github.com/andjosh/as2/actions/workflows/test.yml)
+[![Test Suite](https://github.com/alexdean/as2/actions/workflows/test.yml/badge.svg)](https://github.com/alexdean/as2/actions/workflows/test.yml)
 
 ## Known Limitations
 
@@ -30,10 +30,7 @@ along.
        will see a MIC verification failure. AS2 RFC specifically prefers sha1 and
        mentions md5. Mendelson AS2 server supports a number of other algorithms.
        (sha256, sha512, etc)
-  2. Payload bodies can have a few different mime types. We expect a type that
-     matches `application/EDI-*`. We're unable to receive content that has any other
-     mime type. https://datatracker.ietf.org/doc/html/rfc1767#section-1
-  3. AS2 partners may agree to use separate certificates for data encryption and data signing.
+  2. AS2 partners may agree to use separate certificates for data encryption and data signing.
      We do not support separate certificates for these purposes.
 
 ## Installation
