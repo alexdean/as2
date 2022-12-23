@@ -2,3 +2,4 @@ certs
 .DS_Store
 Gemfile.lock
 pkg
+tmp/inbox/*
