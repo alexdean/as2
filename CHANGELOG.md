@@ -1,3 +1,7 @@
+## Unreleased
+
+  * Improve example server to make it more useful for local testing & development. [#17](https://github.com/alexdean/as2/pull/17)
+
 ## 0.5.1, August 10, 2022
 
   * Any HTTP 2xx status received from a partner should be considered successful. [#12](https://github.com/andjosh/as2/pull/12)
