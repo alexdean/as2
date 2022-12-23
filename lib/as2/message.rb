@@ -2,9 +2,10 @@ module As2
   class Message
     attr_reader :verification_error
 
-    # given multiple parts of a message, choose the one most likely to be the actual content we care about
+    # given multiple parts of a message, choose the one most likely to be the
+    # actual content we care about
     #
-    # @param [Array<Mail::Part>]
+    # @param [Mail::PartsList] mail_parts
     # @return [Mail::Part, nil]
     def self.choose_attachment(mail_parts)
       return nil if mail_parts.nil?
@@ -16,12 +17,18 @@ module As2
       candidates[0]
     end
 
+    # return the mail part containing a digital signature
+    #
+    # @param [Mail::PartsList] mail_parts
+    # @return [Mail::Part, nil]
     def self.choose_signature(mail_parts)
       return nil if mail_parts.nil?
 
       mail_parts.find { |part| part.content_type.to_s['pkcs7-signature'] }
     end
 
+    # calculate the MIC for a given mail part
+    #
     # @param [Mail::Part] attachment
     # @param [String] mic_algorithm
     # @return [String] message integrity check string
@@ -96,7 +103,6 @@ module As2
       @private_key = private_key
       @public_certificate = public_certificate
       @verification_error = nil
-      @updated_body_due_to_lineending_workaround = nil
     end
 
     def decrypted_message
@@ -133,8 +139,6 @@ module As2
         output = result[:valid]
         @verification_error = result[:error]
 
-        # TODO: log on startup: "we are using a bad version of mail"
-        #
         # HACK until https://github.com/mikel/mail/pull/1511 is available
         #
         # due to a bug in the mail gem (fixed in PR above), when using
