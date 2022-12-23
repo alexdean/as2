@@ -164,6 +164,70 @@ describe As2::Message do
     end
   end
 
+  describe '.choose_signature' do
+    it 'returns nil if no parts are given' do
+      assert_nil As2::Message.choose_signature(nil)
+      assert_nil As2::Message.choose_signature([])
+    end
+
+    it 'finds the pkcs7-signature part of the message' do
+      decrypted_message = <<~EOF
+      Content-Type: multipart/signed; protocol="application/pkcs7-signature"; micalg="sha-256"; \tboundary="----855604ACC1530DC371EC9487F598CF78"
+
+      ------855604ACC1530DC371EC9487F598CF78
+      Content-Type: application/octet-stream
+
+      This is text content.
+      ------855604ACC1530DC371EC9487F598CF78
+      Content-Type: application/pkcs7-signature; name="smime.p7s"
+      Content-Transfer-Encoding: base64
+      Content-Disposition: attachment; filename="smime.p7s"
+
+      #{Base64.encode64('sig-sig-sig')}
+      ------855604ACC1530DC371EC9487F598CF78--
+      EOF
+
+      mail = Mail.new(decrypted_message)
+
+      signature = As2::Message.choose_signature(mail.parts)
+      assert_equal "sig-sig-sig", signature.body.to_s
+    end
+
+    it 'finds the x-pkcs7-signature part of the message' do
+      decrypted_message = <<~EOF
+      Content-Type: multipart/signed; protocol="application/x-pkcs7-signature"; micalg="sha-256"; \tboundary="----855604ACC1530DC371EC9487F598CF78"
+
+      ------855604ACC1530DC371EC9487F598CF78
+      Content-Type: application/octet-stream
+
+      This is text content.
+      ------855604ACC1530DC371EC9487F598CF78
+      Content-Type: application/x-pkcs7-signature; name="smime.p7s"
+      Content-Transfer-Encoding: base64
+      Content-Disposition: attachment; filename="smime.p7s"
+
+      #{Base64.encode64('sig-sig-sig')}
+      ------855604ACC1530DC371EC9487F598CF78--
+      EOF
+
+      mail = Mail.new(decrypted_message)
+
+      signature = As2::Message.choose_signature(mail.parts)
+      assert_equal "sig-sig-sig", signature.body.to_s
+    end
+
+    it 'returns nil if message is unsigned' do
+      decrypted_message = <<~EOF
+      "blah blah blah"
+      EOF
+
+      mail = Mail.new(decrypted_message)
+
+      signature = As2::Message.choose_signature(mail.parts)
+      assert_nil signature
+    end
+  end
+
   describe '.mic' do
     # expected MIC values collected by running OpenAS2 locally & examining logs
     #
@@ -226,9 +290,6 @@ describe As2::Message do
   end
 
   describe '#valid_signature?' do
-    it 'is successful when message content contains trailing newline'
-    it 'is successful when message content does not contain trailing newline'
-
     it 'is true when message is signed properly' do
       assert @message.valid_signature?(@client_crt), "Invalid signature"
     end
@@ -256,15 +317,172 @@ describe As2::Message do
       assert_equal hacked_payload, message.attachment.body.to_s
     end
 
-    it "works for various 'Content-Transfer-Encoding' settings" do
-      encrypted = File.read('test/fixtures/base64_content_transfer_encoding.pkcs7')
-      message = As2::Message.new(encrypted, @server_key, @server_crt)
-      assert message.valid_signature?(@client_crt)
+    # MIC values described in comments were confirmed to be correct for OpenAS2
+    # by examining OpenAS2 server logs at time of transmission.
+    describe 'with OpenAS2' do
+      describe 'using Content-Transfer-Encoding: base64' do
+        it 'can verify a message with \n line endings' do
+          # echo -n "\nencoding:binary\nline-ending:newline\n" > base64_newline.txt
+          # MIC: 'BPd3v8Q+vdx13PEe/K0egVMiJfi6DBSgmyo4mKgM5bU=' (sha256)
+          encrypted = File.read('test/fixtures/from_openas2/base64_newline.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
 
-      encrypted = File.read('test/fixtures/binary_content_transfer_encoding.pkcs7')
-      message = As2::Message.new(encrypted, @server_key, @server_crt)
+        it 'can verify a message with \r\n line endings' do # base64_crlf
+          # echo -n "\r\nencoding:binary\r\nline-ending:crlf\r\n" > base64_crlf.txt
+          # MIC: 'CFv2BSzsV6zLv44PD2UBeASAjg5bL1L3DHZnJrsRUAI=' (sha256)
+          encrypted = File.read('test/fixtures/from_openas2/base64_crlf.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+      end
 
-      assert message.valid_signature?(@client_crt)
+      describe 'using Content-Transfer-Encoding: binary' do
+        it 'can verify a message starting with \n\n' do
+          # echo -n "\n\nencoding:binary\nline-ending:newline\n" > binary_initial_double_newline.txt
+          # MIC: 'O0pF3FMeakUSGbKNmD0rushtjWNfLO29eDvdOiwKoqs=' (sha256)
+          encrypted = File.read('test/fixtures/from_openas2/binary_initial_double_newline.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+
+        it 'can verify a message with \n line endings' do
+          # echo -n "encoding:binary\nline-ending:newline\nmore text\nis good text\ndon't you think?" > binary_newlines.txt
+          # MIC: 'RX+gWZEQOkou02/9eOPCbtUNYxTJXZbGXtslssIezaY=' (sha256)
+          encrypted = File.read('test/fixtures/from_openas2/binary_newlines.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+
+        it 'can verify a message ending with \n\n' do
+          # echo -n "encoding:binary\nline-ending:newline\nmore text\nis good text\ndon't you think?\n\n" > binary_trailing_double_newline.txt
+          # MIC: 'lGv3z+A33GjNFox7Yzkn+PTNNPbZ19JRhMOvXgp2zSk=' (sha256)
+          encrypted = File.read('test/fixtures/from_openas2/binary_trailing_double_newline.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+
+        it 'can verify a message starting with \r\n\r\n' do
+          # echo -n "\r\n\r\nencoding:binary\nline-ending:crlf\r\nmore text\r\n" > binary_initial_double_crlf.txt
+          # MIC: 'dICWO5M3qSfVmyvDHXnVyKGLxkuTlIb4DInirNKBRT0=' (sha256)
+          encrypted = File.read('test/fixtures/from_openas2/binary_initial_double_crlf.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+
+        it 'can verify a message with \r\n line endings' do
+          # echo -n "encoding:binary\r\nline-ending:crlf\r\nmore text\r\n" > binary_crlf_lines.txt
+          # MIC: 'P2Ox0s8iJBd3TcNyYfv4IHO1LfkS32U8sdoT/axPjio=' (sha256)
+          encrypted = File.read('test/fixtures/from_openas2/binary_crlf_lines.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+
+        it 'can verify a message ending with \r\n\r\n' do
+          # echo -n "encoding:binary\r\nline-ending:crlf\r\nmore text\r\n\r\n" > binary_trailing_double_crlf.txt
+          # MIC: '4FuEDJ+N581GkvjZV4BT7iFsC4JRqGC2pLP2IIuOd1c=' (sha256)
+          encrypted = File.read('test/fixtures/from_openas2/binary_trailing_double_crlf.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+      end
+    end
+
+    # test/fixtures/from_mendelson/*.pkcs7
+
+    describe 'with Mendelson' do
+      describe 'using Content-Transfer-Encoding: base64' do
+        it 'can verify a message with \n line endings' do
+          # echo -n "\nencoding:binary\nline-ending:newline\n" > base64_newline.txt
+          # MIC: 'WA7oyN5wqF15kPR65fIn+V4yzvsDnpFc025+mSgt0hI=' (sha256)
+          encrypted = File.read('test/fixtures/from_mendelson/base64_newline.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+
+        it 'can verify a message with \r\n line endings' do  # base64_crlf
+          # echo -n "\r\nencoding:binary\r\nline-ending:crlf\r\n" > base64_crlf.txt
+          # MIC: '4ZkgJXocVDxYRtaitolX29rY9yAWLfmht8NGLCWQtnc=' (sha256)
+          encrypted = File.read('test/fixtures/from_mendelson/base64_crlf.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+      end
+
+      describe 'using Content-Transfer-Encoding: binary' do
+        it 'can verify a message starting with \n\n' do
+          # echo -n "\n\nencoding:binary\nline-ending:newline\n" > binary_initial_double_newline.txt
+          # MIC: '1a+TLiA2JUtdqd+CVAGbZnRUhSltx5I2nuK3ZaPswB4=' (sha256)
+          encrypted = File.read('test/fixtures/from_mendelson/binary_initial_double_newline.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+
+        it 'can verify a message with \n line endings' do
+          # echo -n "encoding:binary\nline-ending:newline\nmore text\nis good text\ndon't you think?" > binary_newlines.txt
+          # MIC: 'eYfOn1VkdCfSQf7trg6Jy8qj7CqMACXtLFY4XSfXyFs=' (sha256)
+          encrypted = File.read('test/fixtures/from_mendelson/binary_newlines.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+
+        it 'can verify a message ending with \n\n' do
+          # echo -n "encoding:binary\nline-ending:newline\nmore text\nis good text\ndon't you think?\n\n" > binary_trailing_double_newline.txt
+          # MIC: 'WB54rweCaTk5PkPJApqhks/8wYrN2FhFYJwdwHr4wcY=' (sha256)
+          encrypted = File.read('test/fixtures/from_mendelson/binary_trailing_double_newline.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+
+        it 'can verify a message starting with \r\n\r\n' do
+          # echo -n "\r\n\r\nencoding:binary\r\nline-ending:crlf\r\nmore text\r\n" > binary_initial_double_crlf.txt
+          # MIC: '46chrZzSsA18bQCAFG9I+UGndcj7QPO5FH6ESccX79U=' (sha256)
+          encrypted = File.read('test/fixtures/from_mendelson/binary_initial_double_crlf.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+
+        it 'can verify a message with \r\n line endings' do
+          # echo -n "encoding:binary\r\nline-ending:crlf\r\nmore text\r\n" > binary_crlf_lines.txt
+          # MIC: 'vcqn9ReBEUyJLEe1A0l8L+aVqXGaOLgKTP0us9PgLOw=' (sha256)
+          encrypted = File.read('test/fixtures/from_mendelson/binary_crlf_lines.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+
+        it 'can verify a message ending with \r\n\r\n' do
+          # echo -n "encoding:binary\r\nline-ending:crlf\r\nmore text\r\n\r\n" > binary_trailing_double_crlf.txt
+          # MIC: 'cToHc8OeBOqEuuowBfXWYmMb0ZKTa51LfOa13aK1i6Q=' (sha256)
+          encrypted = File.read('test/fixtures/from_mendelson/binary_trailing_double_crlf.pkcs7')
+          message = As2::Message.new(encrypted, @server_key, @server_crt)
+          assert message.valid_signature?(@client_crt)
+        end
+      end
+    end
+  end
+
+  # this test will fail (& can be removed) when mail bug is resolved.
+  # https://github.com/mikel/mail/pull/1511
+  describe 'workaround for \r\n mail bug' do
+    describe 'when main signature verification fails and fallback verification succeeds' do
+      # send a binary payload which fails original signature verification, but works during fallback
+      # then make assertion on the MIC which is calculated.
+      it 'updates attachment to be correct' do
+        encrypted = File.read('test/fixtures/from_mendelson/binary_trailing_double_newline.pkcs7')
+        message = As2::Message.new(encrypted, @server_key, @server_crt)
+
+        # this is invalid, "\n" replaced with "\r\n"
+        original_attachment_raw_source = message.attachment.raw_source
+        original_mic = message.mic
+
+        # here we use fallback code to correct `message.attachment`
+        assert message.valid_signature?(@client_crt)
+
+        refute_equal original_attachment_raw_source, message.attachment.raw_source
+        refute_equal original_mic, message.mic
+        assert_equal 'WB54rweCaTk5PkPJApqhks/8wYrN2FhFYJwdwHr4wcY=', message.mic
+      end
     end
   end
 
@@ -300,7 +518,15 @@ describe As2::Message do
       assert_equal attachment.class, Mail::Part
       assert_equal attachment.content_type, 'application/octet-stream'
       assert_equal correct_cleartext, attachment.body.to_s
-      assert_equal nil, attachment.filename
+      assert_nil attachment.filename
+    end
+  end
+
+  describe '#signature' do
+    it 'provides the signature as a Mail::Part' do
+      signature = @message.signature
+      assert_equal signature.class, Mail::Part
+      assert_equal signature.content_type, 'application/pkcs7-signature; name=smime.p7s; smime-type=signed-data'
     end
   end
 end
