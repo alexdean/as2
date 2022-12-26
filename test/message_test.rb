@@ -210,6 +210,20 @@ describe As2::Message do
     end
   end
 
+  describe '#initialize' do
+    it 'allows specification of a mic_algorithm' do
+      message = As2::Message.new(@encrypted_message, @server_key, @server_crt,
+                  mic_algorithm: 'sha1'
+                )
+      assert_equal 'sha1', message.mic_algorithm
+    end
+
+    it 'defaults mic_algorithm to sha256' do
+      message = As2::Message.new(@encrypted_message, @server_key, @server_crt)
+      assert_equal 'sha256', message.mic_algorithm
+    end
+  end
+
   describe '#decrypted_message' do
     it 'returns a decrypted smime message' do
       decrypted = @message.decrypted_message
@@ -284,7 +298,7 @@ describe As2::Message do
       assert_equal attachment.class, Mail::Part
       assert_equal attachment.content_type, 'application/octet-stream'
       assert_equal correct_cleartext, attachment.body.to_s
-      assert_equal nil, attachment.filename
+      assert_nil attachment.filename
     end
   end
 end

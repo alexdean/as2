@@ -24,12 +24,14 @@ module As2
       digest.base64digest(attachment.raw_source.lstrip)
     end
 
-    def initialize(message, private_key, public_certificate)
+    def initialize(message, private_key, public_certificate, mic_algorithm: nil)
       # TODO: might need to use OpenSSL::PKCS7.read_smime rather than .new sometimes
       @pkcs7 = OpenSSL::PKCS7.new(message)
       @private_key = private_key
       @public_certificate = public_certificate
       @verification_error = nil
+
+      @mic_algorithm = As2::DigestSelector.valid?(mic_algorithm) ? mic_algorithm : 'sha256'
     end
 
     def decrypted_message
@@ -106,7 +108,7 @@ module As2
     end
 
     def mic_algorithm
-      'sha256'
+      @mic_algorithm
     end
 
     # Return the attached file, use .filename and .body on the return value

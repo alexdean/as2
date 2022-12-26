@@ -14,11 +14,17 @@ module As2
       @map.keys
     end
 
-    def self.for_code(code)
-      # we may receive 'sha256', 'sha-256', or 'SHA256'.
-      normalized = code.strip.downcase.gsub(/[^a-z0-9]/, '')
+    def self.valid?(code)
+      @map[normalized(code)]
+    end
 
-      @map[normalized] || OpenSSL::Digest::SHA1
+    def self.for_code(code)
+      @map[normalized(code)] || OpenSSL::Digest::SHA1
+    end
+
+    def self.normalized(code)
+      # we may receive 'sha256', 'sha-256', or 'SHA256'.
+      code.to_s.strip.downcase.gsub(/[^a-z0-9]/, '')
     end
   end
 end
