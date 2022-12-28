@@ -53,6 +53,7 @@ handler = Proc.new do |env|
   end
 
   raw_request_body = env['rack.input'].read
+
   mic_algorithm = As2.choose_mic_algorithm(env['HTTP_DISPOSITION_NOTIFICATION_OPTIONS'])
   message = As2::Message.new(raw_request_body, server_info.pkey, server_info.certificate,
               mic_algorithm: mic_algorithm
@@ -93,7 +94,7 @@ handler = Proc.new do |env|
 end
 
 builder = Rack::Builder.new do
-  # TODO: print a full stacktrace when an error occurs
+  use Rack::ShowExceptions
   map '/as2' do
     run handler
   end

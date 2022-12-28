@@ -1,6 +1,7 @@
 ## Unreleased
 
   * Improve example server to make it more useful for local testing & development. [#17](https://github.com/alexdean/as2/pull/17)
+  * Server can examine HTTP headers to determine desired MIC algorithm and respond accordingly.
 
 ## 0.5.1, August 10, 2022
 

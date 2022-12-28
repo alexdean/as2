@@ -13,6 +13,33 @@ describe As2::HeaderParser do
   end
 
   describe '.parse_body' do
+    describe 'with Disposition-Notification-Options headers' do
+      it 'understands header sent by OpenAS2' do
+        result = As2::HeaderParser.parse_body(
+          'signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, sha256'
+        )
+        assert_nil result.value
+        assert_equal ['optional', 'pkcs7-signature'], result['signed-receipt-protocol']
+        assert_equal ['optional', 'sha256'], result['signed-receipt-micalg']
+
+        result = As2::HeaderParser.parse_body(
+          'signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, md5'
+        )
+        assert_nil result.value
+        assert_equal ['optional', 'pkcs7-signature'], result['signed-receipt-protocol']
+        assert_equal ['optional', 'md5'], result['signed-receipt-micalg']
+      end
+
+      it 'understands header sent by Mendelson' do
+        result = As2::HeaderParser.parse_body(
+          'signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, SHA256'
+        )
+        assert_nil result.value
+        assert_equal ['optional', 'pkcs7-signature'], result['signed-receipt-protocol']
+        assert_equal ['optional', 'SHA256'], result['signed-receipt-micalg']
+      end
+    end
+
     it 'does stuff' do
       result = As2::HeaderParser.parse_body(
         'application/pkcs7-mime; name=smime.p7m;    smime-type=enveloped-data'
