@@ -1,0 +1,27 @@
+Content-Type: multipart/signed; protocol="application/pkcs7-signature"; micalg=sha-256; 
+	boundary="----=_Part_3_60801272.1671737165487"
+
+------=_Part_3_60801272.1671737165487
+Content-Type: application/EDI-X12
+Content-Transfer-Encoding: base64
+Content-Disposition: Attachment; filename="base64_crlf.txt"
+
+DQplbmNvZGluZzpiaW5hcnkNCmxpbmUtZW5kaW5nOmNybGYNCg==
+------=_Part_3_60801272.1671737165487
+Content-Type: application/pkcs7-signature; name=smime.p7s; smime-type=signed-data
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="smime.p7s"
+Content-Description: S/MIME Cryptographic Signature
+
+MIAGCSqGSIb3DQEHAqCAMIACAQExDTALBglghkgBZQMEAgEwgAYJKoZIhvcNAQcBAAAxggIRMIIC
+DQIBATBPMEIxHTAbBgNVBAoMFFJ1YnkgQVMyIFRlc3QgQ2xpZW50MSEwHwYDVQQDDBhjbGllbnQu
+dGVzdC1ydWJ5LWFzMi5jb20CCQCRBvgFyC5j1jALBglghkgBZQMEAgGggZYwGAYJKoZIhvcNAQkD
+MQsGCSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMjIxMjIyMTkyNjA1WjArBgkqhkiG9w0BCTQx
+HjAcMAsGCWCGSAFlAwQCAaENBgkqhkiG9w0BAQsFADAvBgkqhkiG9w0BCQQxIgQgCFv2BSzsV6zL
+v44PD2UBeASAjg5bL1L3DHZnJrsRUAIwDQYJKoZIhvcNAQELBQAEggEAXp6IKZ05LbyS1Jl2Q63c
+a70V5mdPjpPh9f8UduHV377vLlFL0JbbnBTh59g7/4hT0Y5pzTmanU80VdN9LMEf4W047iVBn9if
+iIiAHm0e35LgVtomMy7o3AG6Ibq8xKG/Rq9g9j/ilKLJsgGBXA560XzhtgUG703VzbY1PWbNk1aH
+v9C148Tix1cHd/rDW/0o0OJwIYGVjUAUHoVHItNqu9X3ySJw8pzzZnWLG6LjiTAsbb0yRpk/3F6s
+O0sZKMHb7JHgvOFKIY2I8/DZ2No+SauvogU/VnHmkRC8Bg+lci19lvCbTN+i10WWZT2i1clp5rcz
+WqZZK2V2fcP6Tn/AFwAAAAAAAA==
+------=_Part_3_60801272.1671737165487--

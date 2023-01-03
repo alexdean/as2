@@ -1,0 +1,10 @@
+Content-Type: application/EDI-X12
+Content-Transfer-Encoding: binary
+Content-Disposition: attachment; filename=binary_trailing_double_newline.txt
+
+encoding:binary
+line-ending:newline
+more text
+is good text
+don't you think?
+

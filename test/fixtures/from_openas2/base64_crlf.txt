@@ -1,0 +1,6 @@
+
+Content-Type: application/EDI-X12
+Content-Transfer-Encoding: base64
+Content-Disposition: Attachment; filename="base64_crlf.txt"
+
+DQplbmNvZGluZzpiaW5hcnkNCmxpbmUtZW5kaW5nOmNybGYNCg==

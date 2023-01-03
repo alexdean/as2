@@ -1,0 +1,8 @@
+
+Content-Type: application/EDI-X12
+Content-Transfer-Encoding: binary
+Content-Disposition: Attachment; filename="binary_crlf_lines.txt"
+
+encoding:binary
+line-ending:crlf
+more text
