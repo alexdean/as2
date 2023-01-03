@@ -1,6 +1,7 @@
-## Unreleased
+## Unreleased (future 0.6.0)
 
   * Improve example server to make it more useful for local testing & development. [#17](https://github.com/alexdean/as2/pull/17)
+  * Support `Content-Tranfer-Encoding: binary`. [#11](https://github.com/alexdean/as2/pull/11)
 
 ## 0.5.1, August 10, 2022
 
