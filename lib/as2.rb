@@ -1,13 +1,14 @@
 require 'openssl'
 require 'mail'
 require 'securerandom'
-require 'as2/config'
-require 'as2/server'
+
 require 'as2/client'
-require 'as2/header_parser'
 require 'as2/client/result'
+require 'as2/config'
 require 'as2/digest_selector'
-require "as2/version"
+require 'as2/parser/disposition_notification_options'
+require 'as2/server'
+require 'as2/version'
 
 module As2
   def self.configure(&block)
@@ -23,7 +24,7 @@ module As2
   end
 
   def self.choose_mic_algorithm(disposition_notification_options)
-    parsed = As2::HeaderParser.parse_body(disposition_notification_options)
+    parsed = As2::Parser::DispositionNotificationOptions.parse(disposition_notification_options)
     Array(parsed['signed-receipt-micalg']).find { |m| As2::DigestSelector.valid?(m) }
   end
 end
