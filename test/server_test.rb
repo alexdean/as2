@@ -28,7 +28,7 @@ describe As2::Server do
         'HTTP_MESSAGE_ID' => '<message@server>',
         'HTTP_AS2_FROM' => 'ALICE'
       }
-      status, headers, body = @server.send_mdn(env, 'micmicmic', 'sha256')
+      _status, headers, body = @server.send_mdn(env, 'micmicmic', 'sha256')
 
       response = OpenSSL::PKCS7.read_smime body.first.strip
       assert_equal @server_info.certificate.serial, response.signers.first.serial
@@ -63,7 +63,7 @@ describe As2::Server do
         'HTTP_MESSAGE_ID' => '<message@server>',
         'HTTP_AS2_FROM' => 'ALICE'
       }
-      status, headers, body = @server.send_mdn(env, 'micmicmic', 'sha256', 'error message')
+      _status, headers, body = @server.send_mdn(env, 'micmicmic', 'sha256', 'error message')
 
       response = OpenSSL::PKCS7.read_smime body.first.strip
       assert_equal @server_info.certificate.serial, response.signers.first.serial
