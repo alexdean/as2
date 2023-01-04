@@ -1,3 +1,6 @@
+require 'mail'
+require 'openssl'
+
 module As2
   class Message
     attr_reader :verification_error
