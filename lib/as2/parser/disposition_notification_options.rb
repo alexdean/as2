@@ -40,14 +40,8 @@ module As2
             # force lower-case to make access more reliable
             part_key = normalize_key(part_key)
 
-            # TODO: make this part represent itself as CSV when used in string context
-            # most of the time there will only be 1 value. so make that the common access pattern
-            # but make it possible to retrieve repeated values if necessary
-            # attributes[part_key] ||= []
-            # attributes[part_key] += part_value
             attributes[part_key] = part_value
           else
-            # values << part
             value = split_part(part)
           end
         end
@@ -64,16 +58,11 @@ module As2
         part_value = part.split(',').map do |value|
                            out = value.strip
                            # remove quotes
-                           if out[0] == out[-1] && out[0] == "'" || out[0] == '"'
+                           if out[0] == out[-1] && (out[0] == "'" || out[0] == '"')
                              out = out[1..-2]
                            end
                            out
                          end
-
-        # single values as scalars not array
-        if part_value.size == 1
-          part_value = part_value[0]
-        end
 
         part_value
       end
