@@ -1,5 +1,5 @@
-require 'openssl'
 require 'mail'
+require 'openssl'
 require 'securerandom'
 
 require 'as2/client'
@@ -23,6 +23,14 @@ module As2
     "<#{server_info.name}-#{Time.now.strftime('%Y%m%d-%H%M%S')}-#{SecureRandom.uuid}@#{server_info.domain}>"
   end
 
+  # Select which algorithm to use for calculating a MIC, based on preferences
+  # stated by sender & our list of available algorithms.
+  #
+  # @see https://datatracker.ietf.org/doc/html/rfc4130#section-7.3
+  #
+  # @param [String] disposition_notification_options The content of an HTTP
+  #   Disposition-Notification-Options header
+  # @return [String]
   def self.choose_mic_algorithm(disposition_notification_options)
     parsed = As2::Parser::DispositionNotificationOptions.parse(disposition_notification_options)
     Array(parsed['signed-receipt-micalg']).find { |m| As2::DigestSelector.valid?(m) }

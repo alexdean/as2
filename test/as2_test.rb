@@ -35,6 +35,9 @@ describe As2 do
     it 'returns first acceptable algo if client specifies multiple valid options' do
       header_value = 'signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, invalid, sha1, md5'
       assert_equal 'sha1', As2.choose_mic_algorithm(header_value)
+
+      header_value = 'signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, invalid, md5, sha1'
+      assert_equal 'md5', As2.choose_mic_algorithm(header_value)
     end
   end
 end
