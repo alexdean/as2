@@ -1,6 +1,8 @@
-require 'rack'
 require 'logger'
+require 'openssl'
+require 'rack'
 require 'stringio'
+
 require 'as2/mime_generator'
 require 'as2/message'
 

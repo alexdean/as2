@@ -1,4 +1,6 @@
+require 'openssl'
 require 'uri'
+
 module As2
   module Config
     def self.build_certificate(input)

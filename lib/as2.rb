@@ -1,5 +1,3 @@
-require 'openssl'
-require 'mail'
 require 'securerandom'
 require 'as2/config'
 require 'as2/server'

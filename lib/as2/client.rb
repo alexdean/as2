@@ -1,4 +1,6 @@
+require 'mail'
 require 'net/http'
+require 'openssl'
 
 module As2
   class Client
