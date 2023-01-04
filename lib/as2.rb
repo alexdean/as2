@@ -28,7 +28,7 @@ module As2
   #
   # @param [String] disposition_notification_options The content of an HTTP
   #   Disposition-Notification-Options header
-  # @return [String]
+  # @return [String, nil] either an algorithm name, or nil if none is found in given header
   def self.choose_mic_algorithm(disposition_notification_options)
     parsed = As2::Parser::DispositionNotificationOptions.parse(disposition_notification_options)
     Array(parsed['signed-receipt-micalg']).find { |m| As2::DigestSelector.valid?(m) }
