@@ -290,6 +290,14 @@ describe As2::Message do
       message = As2::Message.new(@encrypted_message, @server_key, @server_crt)
       assert_equal 'sha256', message.mic_algorithm
     end
+
+    it 'raises if given mic algorithm is unrecognized' do
+      assert_raises(ArgumentError) {
+        As2::Message.new(@encrypted_message, @server_key, @server_crt,
+          mic_algorithm: 'wat'
+        )
+      }
+    end
   end
 
   describe '#decrypted_message' do
@@ -402,8 +410,6 @@ describe As2::Message do
         end
       end
     end
-
-    # test/fixtures/from_mendelson/*.pkcs7
 
     describe 'with Mendelson' do
       describe 'using Content-Transfer-Encoding: base64' do

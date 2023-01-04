@@ -104,7 +104,10 @@ module As2
       @public_certificate = public_certificate
       @verification_error = nil
 
-      @mic_algorithm = As2::DigestSelector.valid?(mic_algorithm) ? mic_algorithm : 'sha256'
+      @mic_algorithm = mic_algorithm || 'sha256'
+      if !As2::DigestSelector.valid?(@mic_algorithm)
+        raise ArgumentError, "'#{@mic_algorithm}' is not a valid MIC algorithm."
+      end
     end
 
     def decrypted_message
