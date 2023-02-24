@@ -157,13 +157,7 @@ describe As2::Client do
     it 'considers a 2xx response code to be successful' do
       setup_integration_scenario(http_response_status: '202')
 
-      file_name_received_by_bob = nil
-      file_content_received_by_bob = nil
-
-      @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner) do |file_name, body|
-                      file_name_received_by_bob = file_name
-                      file_content_received_by_bob = body.to_s
-                    end
+      @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner)
 
       result = @alice_client.send_file('data.txt', content: File.read('test/fixtures/message.txt'))
 
@@ -174,13 +168,7 @@ describe As2::Client do
     it 'considers a 5xx response code to be an error' do
       setup_integration_scenario(http_response_status: '500')
 
-      file_name_received_by_bob = nil
-      file_content_received_by_bob = nil
-
-      @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner) do |file_name, body|
-                      file_name_received_by_bob = file_name
-                      file_content_received_by_bob = body.to_s
-                    end
+      @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner)
 
       result = @alice_client.send_file('data.txt', content: File.read('test/fixtures/message.txt'))
 

@@ -1,7 +1,6 @@
 # test server receives files & saves them to the local filesystem
 #
 # `bundle exec ruby examples/server.rb`
-
 require 'as2'
 require 'rackup'
 require 'rack/handler/puma'
@@ -54,7 +53,11 @@ handler = Proc.new do |env|
   end
 
   raw_request_body = env['rack.input'].read
-  message = As2::Message.new(raw_request_body, server_info.pkey, server_info.certificate)
+
+  mic_algorithm = As2.choose_mic_algorithm(env['HTTP_DISPOSITION_NOTIFICATION_OPTIONS'])
+  message = As2::Message.new(raw_request_body, server_info.pkey, server_info.certificate,
+              mic_algorithm: mic_algorithm
+            )
 
   # do this before writing to disk, in case we have to fix content.
   # @see https://github.com/alexdean/as2/pull/11
@@ -74,13 +77,14 @@ handler = Proc.new do |env|
   # filenames are absolute paths to each file.
   # when we print output, nicer to read a path relative to the project's root.
   prefix_length = root_dir.to_s.length + 1
+  verification_error = message.verification_error
 
   report = <<~EOF
   filename:#{original_filename}
        #{encrypted_filename[prefix_length..]}
        #{decrypted_filename[prefix_length..]}
        #{body_filename[prefix_length..]}
-       valid_signature?:#{valid_signature}, error:#{message.verification_error}
+       valid_signature?:#{valid_signature}#{verification_error && " error:'#{verification_error}'"}
        MIC: '#{message.mic}' (#{message.mic_algorithm})
   EOF
   log(report, transmission_id: transmission_id)
@@ -90,7 +94,7 @@ handler = Proc.new do |env|
 end
 
 builder = Rack::Builder.new do
-  # TODO: print a full stacktrace when an error occurs
+  use Rack::ShowExceptions
   map '/as2' do
     run handler
   end

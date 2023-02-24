@@ -278,6 +278,28 @@ describe As2::Message do
     end
   end
 
+  describe '#initialize' do
+    it 'allows specification of a mic_algorithm' do
+      message = As2::Message.new(@encrypted_message, @server_key, @server_crt,
+                  mic_algorithm: 'sha1'
+                )
+      assert_equal 'sha1', message.mic_algorithm
+    end
+
+    it 'defaults mic_algorithm to sha256' do
+      message = As2::Message.new(@encrypted_message, @server_key, @server_crt)
+      assert_equal 'sha256', message.mic_algorithm
+    end
+
+    it 'raises if given mic algorithm is unrecognized' do
+      assert_raises(ArgumentError) {
+        As2::Message.new(@encrypted_message, @server_key, @server_crt,
+          mic_algorithm: 'wat'
+        )
+      }
+    end
+  end
+
   describe '#decrypted_message' do
     it 'returns a decrypted smime message' do
       decrypted = @message.decrypted_message
@@ -388,8 +410,6 @@ describe As2::Message do
         end
       end
     end
-
-    # test/fixtures/from_mendelson/*.pkcs7
 
     describe 'with Mendelson' do
       describe 'using Content-Transfer-Encoding: base64' do

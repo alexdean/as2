@@ -17,9 +17,31 @@ describe As2::DigestSelector do
     end
 
     # not sure if this is better or if we should raise.
-    # current thinking is: "MDN verification failure" > "raising an exception"
+    # current thinking is: "MDN verification failure for client" > "raising an exception"
     it 'defaults to SHA1 if code is unrecognized' do
       assert_equal OpenSSL::Digest::SHA1, As2::DigestSelector.for_code('blat')
+    end
+  end
+
+  describe '.normalized' do
+    it 'converts codes to canonical form' do
+      assert_equal 'sha256', As2::DigestSelector.normalized('sha256')
+      assert_equal 'sha256', As2::DigestSelector.normalized('SHA256')
+      assert_equal 'sha256', As2::DigestSelector.normalized('sha-256')
+    end
+  end
+
+  describe '.valid?' do
+    it 'identifies known codes' do
+      assert As2::DigestSelector.valid?('sha256')
+      assert As2::DigestSelector.valid?('SHA256')
+      assert As2::DigestSelector.valid?('sha-256')
+
+      refute As2::DigestSelector.valid?('nope')
+      refute As2::DigestSelector.valid?('----')
+      refute As2::DigestSelector.valid?([])
+      refute As2::DigestSelector.valid?(nil)
+      refute As2::DigestSelector.valid?(:wat)
     end
   end
 end

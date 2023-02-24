@@ -15,4 +15,29 @@ describe As2 do
       assert_equal 5, message_ids.uniq.size
     end
   end
+
+  describe '.choose_mic_algorithm' do
+    it 'returns nil if no algorithm is found' do
+      assert_nil As2.choose_mic_algorithm(nil)
+      assert_nil As2.choose_mic_algorithm('')
+    end
+
+    it 'selects best mic algorithm from HTTP header' do
+      header_value = 'signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, SHA256'
+      assert_equal 'SHA256', As2.choose_mic_algorithm(header_value)
+    end
+
+    it 'returns nil if no options are valid' do
+      header_value = 'signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, xxx, yyy'
+      assert_nil As2.choose_mic_algorithm(header_value)
+    end
+
+    it 'returns first acceptable algo if client specifies multiple valid options' do
+      header_value = 'signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, invalid, sha1, md5'
+      assert_equal 'sha1', As2.choose_mic_algorithm(header_value)
+
+      header_value = 'signed-receipt-protocol=optional, pkcs7-signature; signed-receipt-micalg=optional, invalid, md5, sha1'
+      assert_equal 'md5', As2.choose_mic_algorithm(header_value)
+    end
+  end
 end
