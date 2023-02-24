@@ -132,16 +132,38 @@ module As2
       response_content = "Content-Type: #{mdn_content_type.to_s.strip}\r\n\r\n#{mdn_body}"
 
       if mdn_content_type.start_with?('multipart/signed')
-        smime = OpenSSL::PKCS7.read_smime(response_content)
+        begin
+          # This will fail if the signature is binary-encoded. In that case
+          # we rescue so we can continue to extract other data from the MDN.
+          # User can decide how to proceed after the signature verification failure.
+          #
+          # > The parser assumes that the PKCS7 structure is always base64 encoded
+          # > and will not handle the case where it is in binary format or uses quoted
+          # > printable format.
+          #
+          # https://www.openssl.org/docs/man3.1/man3/SMIME_read_PKCS7.html
+          #
+          # Likely we can resolve this by building a PKCS7 manually from the MDN
+          # payload, rather than using `read_smime`.
+          #
+          # An aside: manually base64-encoding the binary signature allows the MDN
+          # to be parsed & verified via `read_smime`, so that could also be an option.
+          smime = OpenSSL::PKCS7.read_smime(response_content)
+        rescue => e
+          # this should have 2 parts. the MDN (parts[0]) and the signature (parts[1])
+          outer_mail = Mail.new(response_content)
+          mail = Mail.new(outer_mail.parts[0])
+          report[:signature_verification_error] = e.message
+        else
+          # create mail instance before #verify call.
+          # `smime.data` is emptied if verification fails, which means we wouldn't know disposition & other details.
+          mail = Mail.new(smime.data)
 
-        # create mail instance before #verify call.
-        # `smime.data` is emptied if verification fails, which means we wouldn't know disposition & other details.
-        mail = Mail.new(smime.data)
-
-        # based on As2::Message version
-        # TODO: test cases based on valid/invalid responses. (response signed with wrong certificate, etc.)
-        smime.verify [@partner.certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN
-        report[:signature_verification_error] = smime.error_string
+          # based on As2::Message version
+          # TODO: test cases based on valid/invalid responses. (response signed with wrong certificate, etc.)
+          smime.verify [@partner.certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN
+          report[:signature_verification_error] = smime.error_string
+        end
       else
         # MDN may be unsigned if an error occurred, like if we sent an unrecognized As2-From header.
         mail = Mail.new(response_content)
@@ -163,8 +185,8 @@ module As2
             end
           end
 
-          report[:disposition] = options['disposition']
-          report[:mid_matched] = original_message_id == options['original-message-id']
+          report[:disposition] = options['disposition'].strip
+          report[:mid_matched] = original_message_id == options['original-message-id'].strip
 
           if options['received-content-mic']
             # do mic calc using the algorithm specified by server.

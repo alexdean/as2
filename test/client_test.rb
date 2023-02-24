@@ -104,6 +104,25 @@ describe As2::Client do
       @document_payload << Base64.strict_encode64('This is a test message.')
     end
 
+    # can use this to create new YAML files for responses from live servers
+    #
+    # client = As2::Client.new('OPENAS2')
+    # as2_result = client.send_file('test.txt', content: 'This is a test message.', content_type: 'text/plain')
+    # File.open('test/fixtures/binary_mdn.yml', 'wb') { |fp| fp.write(serialize_mdn(result)) }
+    #
+    # def serialize_mdn(as2_result)
+    #   # if set, response will be a Net::HTTPResponse
+    #   response = as2_result&.response
+    #
+    #   # headers are going to have string keys. so using string keys here also.
+    #   # so we don't have to remember which level in the payload has which kind of key.
+    #   YAML.dump({
+    #     'code' => response&.code,
+    #     'headers' => response&.each_capitalized&.to_h || {},
+    #     'body' => response&.body
+    #   })
+    # end
+
     it 'handles a signed mdn' do
       mdn_data = YAML.load(File.read('test/fixtures/signed_mdn.yml'))
 
@@ -151,6 +170,30 @@ describe As2::Client do
     it "parses an MDN with a lower-case 'disposition:' header" # eg: "disposition: automatic-action/MDN-sent-automatically; processed"
     it "parses an MDN with extended 'Content-Type:'" # eg: 'Content-Type: text/plain; charset="UTF-8"'
     it "parses an MDN which is missing 'Received-Content-MIC:'"
+
+    it "parses an MDN which uses 'Content-Transfer-Encoding: binary'" do
+      mdn_data = YAML.load(File.read('test/fixtures/binary_mdn.yml'))
+
+      result = @client.evaluate_mdn(
+                 mdn_body: mdn_data['body'],
+                 mdn_content_type: mdn_data['headers']['Content-Type'],
+                 original_message_id: '<RUBYAS2-20230224-133137-92068859-ef3c-4313-b164-a1b09851448e@localhost>',
+                 original_body: @document_payload
+               )
+
+      assert result[:mic_matched]
+      assert result[:mid_matched]
+      assert_equal 'asn1 sig parse error', result[:signature_verification_error]
+      assert_equal 'automatic-action/MDN-sent-automatically; processed', result[:disposition]
+
+      expected_body = "The message sent to Recipient OPENAS2 on Fri, 24 Feb 2023 13:31:37 -0600 " \
+        "with Subject AS2 Transaction has been received, the EDI Interchange was successfully decrypted " \
+        "and it's integrity was verified. In addition, the sender of the message, Sender RUBYAS2 at Location " \
+        "/172.17.0.1 was authenticated as the originator of the message. There is no guarantee however " \
+        "that the EDI Interchange was syntactically correct, or was received by the EDI application/translator."
+
+      assert_equal expected_body, result[:plain_text_body]
+    end
   end
 
   describe '#send_file' do

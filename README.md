@@ -3,6 +3,7 @@
 This is a proof of concept implementation of AS2 protocol: http://www.ietf.org/rfc/rfc4130.txt.
 
 Tested with the mendelson AS2 implementation from http://as2.mendelson-e-c.com
+and with [OpenAS2](https://github.com/OpenAS2/OpenAs2App).
 
 ## Build Status
 
@@ -32,6 +33,9 @@ along.
        (sha256, sha512, etc)
   2. AS2 partners may agree to use separate certificates for data encryption and data signing.
      We do not support separate certificates for these purposes.
+  3. We cannot verify signed MDNs transmitted with `Content-Tranfer-Encoding: binary`.
+     Files may be transmitted successfully, but the MDN signature verification will
+     always fail. This is due to a limitation in openssl.
 
 ## Installation
 
@@ -75,7 +79,7 @@ You can run a local server with `bundle exec ruby examples/server.rb` and send i
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/as2.
+Bug reports and pull requests are welcome on GitHub at https://github.com/alexdean/as2.
 
 
 ## License
