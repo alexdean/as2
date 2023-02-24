@@ -35,7 +35,8 @@ along.
      We do not support separate certificates for these purposes.
   3. We cannot verify signed MDNs transmitted with `Content-Tranfer-Encoding: binary`.
      Files may be transmitted successfully, but the MDN signature verification will
-     always fail. This is due to a limitation in openssl.
+     always fail. This is due to a limitation in openssl. See [#22](https://github.com/alexdean/as2/pull/22)
+     for more info.
 
 ## Installation
 
