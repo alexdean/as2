@@ -1,6 +1,5 @@
 require 'test_helper'
 require 'base64'
-require 'pry'
 
 describe As2::Message do
   before do
@@ -508,7 +507,6 @@ describe As2::Message do
 
   describe '#mic' do
     it 'returns a message integrity check value' do
-
       assert_equal @message.mic, "7S8fpWpx+ASDj0sCAIfS64Q+sm0ezIpDLhPs9wIEy8I="
     end
   end
@@ -516,6 +514,37 @@ describe As2::Message do
   describe '#mic_algorithm' do
     it 'returns a string describing the algorithm used for MIC calculation' do
       assert_equal @message.mic_algorithm, 'sha256'
+    end
+
+    it 'preserves formatting of mic algorithm string' do
+      expected_sha1_mic = 'nyyjxao566rCbElBu0v+lrDjAq4='
+
+      # this shouldn't matter, but just in case it does...
+      # make sure we send back exactly what we got.
+      message = As2::Message.new(@encrypted_message, @server_key, @server_crt,
+                  mic_algorithm: 'sha1'
+                )
+      assert_equal expected_sha1_mic, message.mic
+      assert_equal 'sha1', message.mic_algorithm
+
+      message = As2::Message.new(@encrypted_message, @server_key, @server_crt,
+                  mic_algorithm: 'SHA1'
+                )
+      assert_equal expected_sha1_mic, message.mic
+      assert_equal 'SHA1', message.mic_algorithm
+
+      message = As2::Message.new(@encrypted_message, @server_key, @server_crt,
+                  mic_algorithm: 'sha-1'
+                )
+      assert_equal expected_sha1_mic, message.mic
+      assert_equal 'sha-1', message.mic_algorithm
+
+      message = As2::Message.new(@encrypted_message, @server_key, @server_crt,
+                  mic_algorithm: 'SHA-1'
+                )
+      assert_equal expected_sha1_mic, message.mic
+      assert_equal 'SHA-1', message.mic_algorithm
+
     end
   end
 
