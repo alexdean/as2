@@ -1,7 +1,6 @@
 ## Unreleased (future 0.6.0)
 
-  * don't error if partner sends a binary-encoded MDN. we can't verify the signature, but
-    at least will be able to populate the disposition & other data correctly. [#22](https://github.com/alexdean/as2/pull/22)
+  * allow verification of signed MDNs which use `Content-Transfer-Encoding: binary`. [#22](https://github.com/alexdean/as2/pull/22)
   * Improve example server to make it more useful for local testing & development. [#17](https://github.com/alexdean/as2/pull/17)
   * Support `Content-Tranfer-Encoding: binary`. [#11](https://github.com/alexdean/as2/pull/11)
   * Server can choose MIC algorithm based on HTTP `Disposition-Notification-Options` header. [#20](https://github.com/alexdean/as2/pull/20)
