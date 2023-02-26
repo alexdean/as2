@@ -116,6 +116,8 @@ module As2
 
     def valid_signature?(partner_certificate)
       content_type = mail.header_fields.find { |h| h.name == 'Content-Type' }.content_type
+      # TODO: substantial overlap between this code & the fallback/rescue code in
+      # As2::Client#verify_mdn_signature
       if content_type == "multipart/signed"
         # for a "multipart/signed" message, we will do 'detatched' signature
         # verification, where we supply the data to be verified as the 3rd parameter
@@ -126,7 +128,9 @@ module As2
         # > the MIME entity that is signed; the second part contains the "detached signature"
         # > CMS SignedData object in which the encapContentInfo eContent field is absent.
         #
-        # https://datatracker.ietf.org/doc/html/rfc3851#section-3.4.3.1
+        # https://datatracker.ietf.org/doc/html/rfc3851#section-3.4.3
+        #
+        # see also https://datatracker.ietf.org/doc/html/rfc1847#section-2.1
 
         content = attachment.raw_source
         # remove any leading \r\n characters (between headers & body i think).

@@ -9,7 +9,11 @@ module As2
     #   via a call to #add_partner.
     # @param [As2::Config::ServerInfo,nil] server_info The server info used to identify
     #   this client to the partner. If omitted, the main As2::Config.server_info will be used.
-    def initialize(partner, server_info: nil)
+    # @param [Logger, nil] logger If supplied, some additional information about how
+    #   messages are processed will be written here.
+    def initialize(partner, server_info: nil, logger: nil)
+      @logger = logger || Logger.new('/dev/null')
+
       if partner.is_a?(As2::Config::Partner)
         @partner = partner
       else
@@ -132,44 +136,18 @@ module As2
       response_content = "Content-Type: #{mdn_content_type.to_s.strip}\r\n\r\n#{mdn_body}"
 
       if mdn_content_type.start_with?('multipart/signed')
-        begin
-          # This will fail if the signature is binary-encoded. In that case
-          # we rescue so we can continue to extract other data from the MDN.
-          # User can decide how to proceed after the signature verification failure.
-          #
-          # > The parser assumes that the PKCS7 structure is always base64 encoded
-          # > and will not handle the case where it is in binary format or uses quoted
-          # > printable format.
-          #
-          # https://www.openssl.org/docs/man3.1/man3/SMIME_read_PKCS7.html
-          #
-          # Likely we can resolve this by building a PKCS7 manually from the MDN
-          # payload, rather than using `read_smime`.
-          #
-          # An aside: manually base64-encoding the binary signature allows the MDN
-          # to be parsed & verified via `read_smime`, so that could also be an option.
-          smime = OpenSSL::PKCS7.read_smime(response_content)
-        rescue => e
-          # this should have 2 parts. the MDN (parts[0]) and the signature (parts[1])
-          outer_mail = Mail.new(response_content)
-          mail = Mail.new(outer_mail.parts[0])
-          report[:signature_verification_error] = e.message
-        else
-          # create mail instance before #verify call.
-          # `smime.data` is emptied if verification fails, which means we wouldn't know disposition & other details.
-          mail = Mail.new(smime.data)
-
-          # based on As2::Message version
-          # TODO: test cases based on valid/invalid responses. (response signed with wrong certificate, etc.)
-          smime.verify [@partner.certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN
-          report[:signature_verification_error] = smime.error_string
-        end
+        result = parse_signed_mdn(
+                                   multipart_signed_message: response_content,
+                                   certificate: @partner.certificate
+                                 )
+        mdn_report = result[:mdn_report]
+        report[:signature_verification_error] = result[:signature_verification_error]
       else
         # MDN may be unsigned if an error occurred, like if we sent an unrecognized As2-From header.
-        mail = Mail.new(response_content)
+        mdn_report = Mail.new(response_content)
       end
 
-      mail.parts.each do |part|
+      mdn_report.parts.each do |part|
         if part.content_type.start_with?('text/plain')
           report[:plain_text_body] = part.body.to_s.strip
         elsif part.content_type.start_with?('message/disposition-notification')
@@ -203,6 +181,99 @@ module As2
         end
       end
       report
+    end
+
+    private
+
+    # extract the MDN body from a multipart/signed wrapper & attempt to verify
+    # the signature
+    #
+    # @param [String] multipart_signed_message The 'outer' MDN body, containing MIME header,
+    #   MDN body (which itself is likely a multi-part object) and a signature.
+    # @param [OpenSSL::X509::Certificate] verify that the MDN body was signed using this certificate
+    # @return [Hash] results of the check
+    #   * :mdn_mime_body [Mail::Message] The 'inner' MDN body, with signature removed
+    #   * :signature_verification_error [String] Any error which resulted when checking the
+    #     signature. If this is empty it means the signature was valid.
+    def parse_signed_mdn(multipart_signed_message:, certificate:)
+      smime = nil
+
+      begin
+        # This will fail if the signature is binary-encoded. In that case
+        # we rescue so we can continue to extract other data from the MDN.
+        # User can decide how to proceed after the signature verification failure.
+        #
+        # > The parser assumes that the PKCS7 structure is always base64 encoded
+        # > and will not handle the case where it is in binary format or uses quoted
+        # > printable format.
+        #
+        # https://www.openssl.org/docs/man3.1/man3/SMIME_read_PKCS7.html
+        #
+        # Likely we can resolve this by building a PKCS7 manually from the MDN
+        # payload, rather than using `read_smime`.
+        #
+        # An aside: manually base64-encoding the binary signature allows the MDN
+        # to be parsed & verified via `read_smime`, so that could also be an option.
+        smime = OpenSSL::PKCS7.read_smime(multipart_signed_message)
+      rescue => e
+        @logger.warn "error checking signature using read_smime. #{e.message}"
+        signature_verification_error = e.message
+      end
+
+      if smime
+        # create mail instance before #verify call.
+        # `smime.data` is emptied if verification fails, which means we wouldn't know disposition & other details.
+        mdn_report = Mail.new(smime.data)
+
+        # based on As2::Message version
+        # TODO: test cases based on valid/invalid responses. (response signed with wrong certificate, etc.)
+        # See notes in As2::Message.verify for reasoning on flag usage
+        smime.verify [certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN
+
+        signature_verification_error = smime.error_string
+      else
+        @logger.info "trying fallback sigature verification."
+        # read_smime will fail on binary-encoded MDNs. in this case, we can attempt
+        # to parse the structure using Mail and do signature verification
+        # slightly differently.
+        #
+        # what follows is the same process applied in As2::Message#valid_signature?.
+        # see notes there for more info on "multipart/signed" MIME messages.
+        #
+        #   1. maybe unify these at some point?
+        #   2. maybe always use this process, and drop initial attempt at
+        #      `OpenSSL::PKCS7.read_smime` above.
+        #
+        # refactoring to allow using As2::Message#valid_signature? here
+        # would also allow us to utilize the line-ending fixup code there
+
+        # this should have 2 parts. the MDN report (parts[0]) and the signature (parts[1])
+        #
+        #  * https://datatracker.ietf.org/doc/html/rfc3851#section-3.4.3
+        #  * see also https://datatracker.ietf.org/doc/html/rfc1847#section-2.1
+        outer_mail = Mail.new(multipart_signed_message)
+
+        mdn_report = outer_mail.parts[0]
+
+        content = mdn_report.raw_source
+        content = content.gsub(/\A\s+/, '')
+
+        signature = outer_mail.parts[1]
+        signature_text = signature.body.to_s
+
+        result = As2::Message.verify(
+                   content: content,
+                   signature_text: signature_text,
+                   certificate: @partner.certificate
+                 )
+
+        signature_verification_error = result[:error]
+      end
+
+      {
+        mdn_report: mdn_report,
+        signature_verification_error: signature_verification_error
+      }
     end
   end
 end

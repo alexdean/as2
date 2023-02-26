@@ -145,6 +145,11 @@ describe As2::Client do
       assert_equal expected_body, result[:plain_text_body]
     end
 
+    # TODO: this test MDN is unsigned due to a configuration error. ("Sender AS2 id SERVER is unknown.")
+    # we should also have a test that a server which is correctly configured but which sends an unsigned MDN,
+    # can be properly understood.
+    #
+    # basically: `assert_nil result[:mic_matched]` should not be asserted for non-error cases.
     it 'handles an unsigned mdn' do
       mdn_data = YAML.load(File.read('test/fixtures/unsigned_mdn.yml'))
 
@@ -183,7 +188,7 @@ describe As2::Client do
 
       assert result[:mic_matched]
       assert result[:mid_matched]
-      assert_equal 'asn1 sig parse error', result[:signature_verification_error]
+      assert_nil result[:signature_verification_error]
       assert_equal 'automatic-action/MDN-sent-automatically; processed', result[:disposition]
 
       expected_body = "The message sent to Recipient OPENAS2 on Fri, 24 Feb 2023 13:31:37 -0600 " \
