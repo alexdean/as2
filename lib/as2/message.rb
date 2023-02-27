@@ -54,46 +54,53 @@ module As2
     #   * :error [String, nil] a verification error message.
     #                          will be empty when `valid` is true.
     def self.verify(content:, signature_text:, certificate:)
-      signature = OpenSSL::PKCS7.new(signature_text)
+      begin
+        signature = OpenSSL::PKCS7.new(signature_text)
 
-      # using an empty CA store. see notes on NOVERIFY flag below.
-      store = OpenSSL::X509::Store.new
+        # using an empty CA store. see notes on NOVERIFY flag below.
+        store = OpenSSL::X509::Store.new
 
-      # notes on verification process and flags used
-      #
-      # ## NOINTERN
-      #
-      # > If PKCS7_NOINTERN is set the certificates in the message itself are
-      # > not searched when locating the signer's certificate. This means that
-      # > all the signers certificates must be in the certs parameter.
-      # >
-      # > One application of PKCS7_NOINTERN is to only accept messages signed
-      # > by a small number of certificates. The acceptable certificates would
-      # > be passed in the certs parameter. In this case if the signer is not
-      # > one of the certificates supplied in certs then the verify will fail
-      # > because the signer cannot be found.
-      #
-      # https://www.openssl.org/docs/manmaster/man3/PKCS7_verify.html
-      #
-      # we want this so we can be sure that the `partner_certificate` we supply
-      # was actually used to sign the message. otherwise we could get a positive
-      # verification even if `partner_certificate` didn't sign the message
-      # we're checking.
-      #
-      # ## NOVERIFY
-      #
-      # > If PKCS7_NOVERIFY is set the signer's certificates are not chain verified.
-      #
-      # ie: we won't attempt to connect signer (in the first param) to a root
-      # CA (in `store`, which is empty). alternately, we could instead remove
-      # this flag, and add `partner_certificate` to `store`. but what's the point?
-      # we'd only be verifying that `partner_certificate` is connected to `partner_certificate`.
-      valid = signature.verify([certificate], store, content, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN)
+        # notes on verification process and flags used
+        #
+        # ## NOINTERN
+        #
+        # > If PKCS7_NOINTERN is set the certificates in the message itself are
+        # > not searched when locating the signer's certificate. This means that
+        # > all the signers certificates must be in the certs parameter.
+        # >
+        # > One application of PKCS7_NOINTERN is to only accept messages signed
+        # > by a small number of certificates. The acceptable certificates would
+        # > be passed in the certs parameter. In this case if the signer is not
+        # > one of the certificates supplied in certs then the verify will fail
+        # > because the signer cannot be found.
+        #
+        # https://www.openssl.org/docs/manmaster/man3/PKCS7_verify.html
+        #
+        # we want this so we can be sure that the `partner_certificate` we supply
+        # was actually used to sign the message. otherwise we could get a positive
+        # verification even if `partner_certificate` didn't sign the message
+        # we're checking.
+        #
+        # ## NOVERIFY
+        #
+        # > If PKCS7_NOVERIFY is set the signer's certificates are not chain verified.
+        #
+        # ie: we won't attempt to connect signer (in the first param) to a root
+        # CA (in `store`, which is empty). alternately, we could instead remove
+        # this flag, and add `partner_certificate` to `store`. but what's the point?
+        # we'd only be verifying that `partner_certificate` is connected to `partner_certificate`.
+        valid = signature.verify([certificate], store, content, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN)
+
+        # when `signature.verify` fails, signature.error_string will be populated.
+        error = signature.error_string
+      rescue => e
+        valid = false
+        error = "#{e.class}: #{e.message}"
+      end
 
       {
         valid: valid,
-        # when `signature.verify` fails, signature.error_string will be populated.
-        error: signature.error_string
+        error: error
       }
     end
 

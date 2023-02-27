@@ -227,6 +227,20 @@ describe As2::Message do
     end
   end
 
+  # most testing of `.verify` is via #valid_signature? tests below.
+  describe '.verify' do
+    it 'handles an invalid signature text' do
+      result = As2::Message.verify(
+                 content: 'this is a message',
+                 signature_text: '--invalid--',
+                 certificate: OpenSSL::X509::Certificate.new
+               )
+
+      assert_equal false, result[:valid]
+      assert_equal "ArgumentError: Could not parse the PKCS7: not enough data", result[:error]
+    end
+  end
+
   describe '.mic' do
     # expected MIC values collected by running OpenAS2 locally & examining logs
     #
