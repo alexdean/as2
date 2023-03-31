@@ -65,6 +65,8 @@ describe As2::Server do
       }
       _status, headers, body = @server.send_mdn(env, 'micmicmic', 'sha256', 'error message')
 
+      # TODO: this fails when MIME headers are not present in body.
+      # we can instead extract them from the HTTP Content-Type header.
       response = OpenSSL::PKCS7.read_smime body.first.strip
       assert_equal @server_info.certificate.serial, response.signers.first.serial
 

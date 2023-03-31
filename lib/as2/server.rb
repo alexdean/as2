@@ -99,10 +99,15 @@ module As2
 
       pkcs7 = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, msg_out.string
       pkcs7.detached = true
+
       smime_signed = OpenSSL::PKCS7.write_smime pkcs7, msg_out.string
 
       content_type = smime_signed[/^Content-Type: (.+?)$/m, 1]
-      # smime_signed.sub!(/\A.+?^(?=---)/m, '')
+
+      # strip everything before the first MIME boundary
+      # (removes MIME headers and plain text "This is an S/MIME signed message"
+      # from the message body...)
+      smime_signed.sub!(/\A.+?^(?=---)/m, '')
 
       headers = {}
       headers['Content-Type'] = content_type
