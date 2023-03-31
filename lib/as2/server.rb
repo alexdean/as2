@@ -94,29 +94,34 @@ module As2
       report.add_part notification
 
       msg_out = StringIO.new
-
       report.write msg_out
 
       pkcs7 = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, msg_out.string
       pkcs7.detached = true
 
-      smime_signed = OpenSSL::PKCS7.write_smime pkcs7, msg_out.string
+      # PEM (base64-encoded) signature
+      bare_pem_signature = pkcs7.to_pem
+      # without the '-----BEGIN PKCS7-----' / '-----END PKCS7-----' delimiters
+      bare_pem_signature.gsub!(/^-----[^\n]+\n/, '')
+      # and with canonical \r\n line endings
+      bare_pem_signature.gsub!(/(?<!\r)\n/, "\r\n")
 
-      content_type = smime_signed[/^Content-Type: (.+?)$/m, 1]
+      boundary = "------#{SecureRandom.hex(16).upcase}"
 
-      # strip everything before the first MIME boundary from the message body
-      # (removes MIME headers and plain text "This is an S/MIME signed message")
-      smime_signed.sub!(/\A.+?^(?=---)/m, '')
-
-      # replace any bare "\n" (not preceeded by "\r") with "\r\n"
-      # risk: if any `report` lines do not end with \r\n, this global gsub will
-      # invalidate the signature. MimeGenerator currently always adds \r\n line endings,
-      # but should probably find a smarter/more-selective way to do this.
-      smime_signed.gsub!(/(?<!\r)\n/, "\r\n")
+      body = boundary + "\r\n"
+      # this is the MDN report, with text/plain and message/disposition-notification parts
+      body += msg_out.string
+      body += boundary + "\r\n"
+      # this is the signature generated over that report
+      body += "Content-Type: application/pkcs7-signature; name=\"smime.p7s\"\r\n"
+      body += "Content-Transfer-Encoding: base64\r\n"
+      body += "Content-Disposition: attachment; filename=\"smime.p7s\"\r\n"
+      body += "\r\n"
+      body += bare_pem_signature
+      body += boundary + "--\r\n"
 
       headers = {}
-      headers['Content-Type'] = content_type
-      # TODO: if MIME-Version header is actually needed, should extract it out of smime_signed.
+      headers['Content-Type'] = "multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=\"#{mic_algorithm}\"; boundary=\"#{boundary}\""
       headers['MIME-Version'] = '1.0'
       headers['Message-ID'] = As2.generate_message_id(@server_info)
       headers['AS2-From'] = @server_info.name
@@ -124,7 +129,7 @@ module As2
       headers['AS2-Version'] = '1.0'
       headers['Connection'] = 'close'
 
-      [200, headers, ["\r\n" + smime_signed]]
+      [200, headers, ["\r\n" + body]]
     end
 
     private
