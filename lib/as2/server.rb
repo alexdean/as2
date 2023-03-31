@@ -104,10 +104,12 @@ module As2
 
       content_type = smime_signed[/^Content-Type: (.+?)$/m, 1]
 
-      # strip everything before the first MIME boundary
-      # (removes MIME headers and plain text "This is an S/MIME signed message"
-      # from the message body...)
+      # strip everything before the first MIME boundary from the message body
+      # (removes MIME headers and plain text "This is an S/MIME signed message")
       smime_signed.sub!(/\A.+?^(?=---)/m, '')
+
+      # replace any bare "\n" (not preceeded by "\r") with "\r\n"
+      smime_signed.gsub!(/(?<!\r)\n/, "\r\n")
 
       headers = {}
       headers['Content-Type'] = content_type
