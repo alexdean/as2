@@ -111,14 +111,14 @@ module As2
       body = boundary + "\r\n"
       # this is the MDN report, with text/plain and message/disposition-notification parts
       body += msg_out.string
-      body += boundary + "\r\n"
+      body += boundary + "\r\n\r\n"
       # this is the signature generated over that report
       body += "Content-Type: application/pkcs7-signature; name=\"smime.p7s\"\r\n"
       body += "Content-Transfer-Encoding: base64\r\n"
       body += "Content-Disposition: attachment; filename=\"smime.p7s\"\r\n"
       body += "\r\n"
       body += bare_pem_signature
-      body += boundary + "--\r\n"
+      body += boundary + "--\r\n\r\n"
 
       headers = {}
       headers['Content-Type'] = "multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=\"#{mic_algorithm}\"; boundary=\"#{boundary}\""
