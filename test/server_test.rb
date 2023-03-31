@@ -30,7 +30,10 @@ describe As2::Server do
       }
       _status, headers, body = @server.send_mdn(env, 'micmicmic', 'sha256')
 
-      response = OpenSSL::PKCS7.read_smime body.first.strip
+      # read_smime needs Content-Type from HTTP headers.
+      payload = "Content-Type: #{headers['Content-Type']}\r\n\r\n#{body.first.strip}"
+
+      response = OpenSSL::PKCS7.read_smime(payload)
       assert_equal @server_info.certificate.serial, response.signers.first.serial
 
       response.verify [@server_info.certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN
@@ -65,7 +68,9 @@ describe As2::Server do
       }
       _status, headers, body = @server.send_mdn(env, 'micmicmic', 'sha256', 'error message')
 
-      response = OpenSSL::PKCS7.read_smime body.first.strip
+      # read_smime needs Content-Type from HTTP headers.
+      payload = "Content-Type: #{headers['Content-Type']}\r\n\r\n#{body.first.strip}"
+      response = OpenSSL::PKCS7.read_smime payload
       assert_equal @server_info.certificate.serial, response.signers.first.serial
 
       response.verify [@server_info.certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN

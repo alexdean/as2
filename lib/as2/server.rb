@@ -81,40 +81,71 @@ module As2
       report = MimeGenerator::Part.new
       report['Content-Type'] = 'multipart/report; report-type=disposition-notification'
 
-      text = MimeGenerator::Part.new
-      text['Content-Type'] = 'text/plain'
-      text['Content-Transfer-Encoding'] = '7bit'
-      text.body = text_body
-      report.add_part text
+      text_part = MimeGenerator::Part.new
+      text_part['Content-Type'] = 'text/plain'
+      text_part['Content-Transfer-Encoding'] = '7bit'
+      text_part.body = text_body
+      report.add_part text_part
 
-      notification = MimeGenerator::Part.new
-      notification['Content-Type'] = 'message/disposition-notification'
-      notification['Content-Transfer-Encoding'] = '7bit'
-      notification.body = options.map{|n, v| "#{n}: #{v}"}.join("\r\n")
-      report.add_part notification
+      notification_part = MimeGenerator::Part.new
+      notification_part['Content-Type'] = 'message/disposition-notification'
+      notification_part['Content-Transfer-Encoding'] = '7bit'
+      notification_part.body = options.map{|n, v| "#{n}: #{v}"}.join("\r\n")
+      report.add_part notification_part
 
       msg_out = StringIO.new
-
       report.write msg_out
+      mdn_text = msg_out.string
 
-      pkcs7 = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, msg_out.string
+      headers, body = format_mdn_v1(mdn_text,
+                        mic_algorithm: mic_algorithm,
+                        as2_to: env['HTTP_AS2_FROM']
+                      )
+
+      [200, headers, ["\r\n" + body]]
+    end
+
+    def format_mdn_v1(mdn_text, mic_algorithm:, as2_to:)
+      pkcs7 = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, mdn_text
       pkcs7.detached = true
-      smime_signed = OpenSSL::PKCS7.write_smime pkcs7, msg_out.string
 
-      content_type = smime_signed[/^Content-Type: (.+?)$/m, 1]
-      # smime_signed.sub!(/\A.+?^(?=---)/m, '')
+      # PEM (base64-encoded) signature
+      bare_pem_signature = pkcs7.to_pem
+      # without the '-----BEGIN PKCS7-----' / '-----END PKCS7-----' delimiters
+      bare_pem_signature.gsub!(/^-----[^\n]+\n/, '')
+      # and with canonical \r\n line endings
+      bare_pem_signature.gsub!(/(?<!\r)\n/, "\r\n")
+
+      # > A good strategy is to choose a boundary that includes
+      # > a character sequence such as "=_" which can never appear in a
+      # > quoted-printable body.
+      #
+      # https://www.rfc-editor.org/rfc/rfc2045#page-21
+      header_boundary = "----=_#{SecureRandom.hex(16).upcase}"
+      body_boundary = "--#{header_boundary}"
+
+      body = body_boundary + "\r\n"
+      # this is the MDN report, with text/plain and message/disposition-notification parts
+      body += mdn_text + "\r\n"
+      body += body_boundary + "\r\n"
+      # this is the signature generated over that report
+      body += "Content-Type: application/pkcs7-signature; name=\"smime.p7s\"\r\n"
+      body += "Content-Transfer-Encoding: base64\r\n"
+      body += "Content-Disposition: attachment; filename=\"smime.p7s\"\r\n"
+      body += "\r\n"
+      body += bare_pem_signature
+      body += body_boundary + "--\r\n"
 
       headers = {}
-      headers['Content-Type'] = content_type
-      # TODO: if MIME-Version header is actually needed, should extract it out of smime_signed.
+      headers['Content-Type'] = "multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=\"#{mic_algorithm}\"; boundary=\"#{header_boundary}\""
       headers['MIME-Version'] = '1.0'
       headers['Message-ID'] = As2.generate_message_id(@server_info)
       headers['AS2-From'] = @server_info.name
-      headers['AS2-To'] = env['HTTP_AS2_FROM']
+      headers['AS2-To'] = as2_to
       headers['AS2-Version'] = '1.0'
       headers['Connection'] = 'close'
 
-      [200, headers, ["\r\n" + smime_signed]]
+      [headers, body]
     end
 
     private
