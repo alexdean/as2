@@ -109,6 +109,9 @@ module As2
       smime_signed.sub!(/\A.+?^(?=---)/m, '')
 
       # replace any bare "\n" (not preceeded by "\r") with "\r\n"
+      # risk: if any `report` lines do not end with \r\n, this global gsub will
+      # invalidate the signature. MimeGenerator currently always adds \r\n line endings,
+      # but should probably find a smarter/more-selective way to do this.
       smime_signed.gsub!(/(?<!\r)\n/, "\r\n")
 
       headers = {}
