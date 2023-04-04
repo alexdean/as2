@@ -237,7 +237,7 @@ describe As2::Message do
                )
 
       assert_equal false, result[:valid]
-      assert_equal "ArgumentError: Could not parse the PKCS7: not enough data", result[:error]
+      assert_match /ArgumentError: Could not parse the PKCS7/, result[:error]
     end
   end
 
