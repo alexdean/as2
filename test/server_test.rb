@@ -38,7 +38,7 @@ describe As2::Server do
         payload = body.first.strip
 
         # characteristics of the v0 format. from OpenSSL::PKCS7.write_smime
-        assert_match /Content\-Type\: multipart\/signed\; protocol=\"application\/x-pkcs7-signature/, payload
+        assert_match /Content-Type: multipart\/signed; protocol="application\/x-pkcs7-signature"; micalg="sha-256";/, payload
         assert_match /This is an S\/MIME signed message\n\n/, payload
 
         response = OpenSSL::PKCS7.read_smime(payload)
@@ -79,7 +79,7 @@ describe As2::Server do
         payload = body.first.strip
 
         # characteristics of the v0 format. from OpenSSL::PKCS7.write_smime
-        assert_match /Content\-Type\: multipart\/signed\; protocol=\"application\/x-pkcs7-signature/, payload
+        assert_match /Content-Type: multipart\/signed; protocol="application\/x-pkcs7-signature"; micalg="sha-256";/, payload
         assert_match /This is an S\/MIME signed message\n\n/, payload
 
         response = OpenSSL::PKCS7.read_smime payload
@@ -133,8 +133,8 @@ describe As2::Server do
         # read_smime needs Content-Type from HTTP headers.
         payload = "Content-Type: #{headers['Content-Type']}\r\n\r\n#{body.first.strip}"
 
-        # characteristics of the v1 format. from OpenSSL::PKCS7.write_smime
-        assert_match /Content\-Type\: multipart\/signed\; protocol=\"application\/pkcs7-signature/, payload
+        # characteristics of the v1 format.
+        assert_match /Content-Type: multipart\/signed; protocol="application\/pkcs7-signature"; micalg="sha-256"/, payload
         # this should only be present in v0.
         refute_match /This is an S\/MIME signed message/, payload
 
@@ -177,7 +177,7 @@ describe As2::Server do
         payload = "Content-Type: #{headers['Content-Type']}\r\n\r\n#{body.first.strip}"
 
         # characteristics of the v1 format.
-        assert_match /Content\-Type\: multipart\/signed\; protocol=\"application\/pkcs7-signature/, payload
+        assert_match /Content-Type: multipart\/signed; protocol="application\/pkcs7-signature"; micalg="sha-256"/, payload
         # this should only be present in v0.
         refute_match /This is an S\/MIME signed message/, payload
 

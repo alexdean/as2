@@ -112,7 +112,6 @@ module As2
       headers, body = send(
                         format_method,
                         mdn_text,
-                        mic_algorithm: mic_algorithm,
                         as2_to: env['HTTP_AS2_FROM']
                       )
 
@@ -135,7 +134,7 @@ module As2
     #   and message/disposition-notification parts
     # @param [String] mic_algorithm
     # @param [String] as2_to
-    def format_mdn_v0(mdn_text, mic_algorithm:, as2_to:)
+    def format_mdn_v0(mdn_text, as2_to:)
       pkcs7 = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, mdn_text
       pkcs7.detached = true
 
@@ -157,7 +156,7 @@ module As2
       [headers, body]
     end
 
-    def format_mdn_v1(mdn_text, mic_algorithm:, as2_to:)
+    def format_mdn_v1(mdn_text, as2_to:)
       pkcs7 = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, mdn_text
       pkcs7.detached = true
 
@@ -188,24 +187,13 @@ module As2
       body += bare_pem_signature
       body += body_boundary + "--\r\n"
 
-      # TODO: not sure where the value of the Content-Type header's micalg parameter
-      #       should come from.
-      #
-      # From experimentation with openssl's write_smime, the 'micalg' is not derived
-      # from the signing certificate or from the mic alg used in the MDN body. So
-      # where does it come from?
-      #
-      # Using OpenSSL::PKCS7.write_smime, the output contains
-      #
-      #   Content-Type: multipart/signed; protocol="application/x-pkcs7-signature"; micalg="sha-256";
-      #
-      # even if the signing certificate uses a signature algorithm like sha384WithRSAEncryption
-      # or if MDN MIC is sha512 or anything else.
-      #
-      # https://www.rfc-editor.org/rfc/rfc1847#section-2.1 describes what micalg
-      # param is for, but it's not clear where the value should be determined.
+      # this is a hack until i can determine a better way to get the micalg parameter
+      # https://stackoverflow.com/questions/75934159/how-does-openssl-smime-determine-micalg-parameter
+      smime_body = OpenSSL::PKCS7.write_smime(pkcs7, mdn_text)
+      micalg = smime_body[/^Content-Type: multipart\/signed.*micalg=\"([^"]+)/m, 1]
+
       headers = {}
-      headers['Content-Type'] = "multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=\"#{mic_algorithm}\"; boundary=\"#{header_boundary}\""
+      headers['Content-Type'] = "multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=\"#{micalg}\"; boundary=\"#{header_boundary}\""
       headers['MIME-Version'] = '1.0'
       headers['Message-ID'] = As2.generate_message_id(@server_info)
       headers['AS2-From'] = @server_info.name
