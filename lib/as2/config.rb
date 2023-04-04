@@ -12,13 +12,22 @@ module As2
       end
     end
 
-    class Partner < Struct.new :name, :url, :certificate
+    class Partner < Struct.new :name, :url, :certificate, :mdn_format
       def url=(url)
         if url.kind_of? String
           self['url'] = URI.parse url
         else
           self['url'] = url
         end
+      end
+
+      def mdn_format=(format)
+        format_s = format.to_s
+        valid_formats = As2::Server.valid_mdn_formats
+        if !valid_formats.include?(format_s)
+          raise ArgumentError, "mdn_format '#{format_s}' must be one of #{valid_formats.inspect}"
+        end
+        self['mdn_format'] = format_s
       end
 
       def certificate=(certificate)

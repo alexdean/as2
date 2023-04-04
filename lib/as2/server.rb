@@ -8,6 +8,11 @@ module As2
   class Server
     attr_accessor :logger
 
+    # each of these should be understandable by send_mdn
+    def self.valid_mdn_formats
+      ['v0', 'v1']
+    end
+
     # @param [As2::Config::ServerInfo] server_info Config used for naming of this
     #   server and key/certificate selection. If omitted, the main As2::Config.server_info is used.
     # @param [As2::Config::Partner] partner Which partner to receive messages from.
@@ -97,12 +102,59 @@ module As2
       report.write msg_out
       mdn_text = msg_out.string
 
-      headers, body = format_mdn_v1(mdn_text,
+      mdn_format = @partner.mdn_format || 'v0'
+      if mdn_format == 'v1'
+        format_method = :format_mdn_v1
+      else
+        format_method = :format_mdn_v0
+      end
+
+      headers, body = send(
+                        format_method,
+                        mdn_text,
                         mic_algorithm: mic_algorithm,
                         as2_to: env['HTTP_AS2_FROM']
                       )
 
       [200, headers, ["\r\n" + body]]
+    end
+
+    # 'original' MDN formatting
+    #
+    # 1. uses OpenSSL::PKCS7.write_smime to build MIME body
+    #   * includes MIME headers in HTTP body
+    #   * includes plain-text "this is an S/MIME message" note prior to initial
+    #     MIME boundary
+    # 2. uses non-standard application/x-pkcs7-* content types
+    # 3. MIME boundaries and signature have \n line endings
+    #
+    # this format is understood by Mendelson, OpenAS2, and several commercial
+    # products (GoAnywhere MFT). it is not understood by IBM Sterling B2B Integrator.
+    #
+    # @param [String] mdn_text MIME multipart/report body containing text/plain
+    #   and message/disposition-notification parts
+    # @param [String] mic_algorithm
+    # @param [String] as2_to
+    def format_mdn_v0(mdn_text, mic_algorithm:, as2_to:)
+      pkcs7 = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, mdn_text
+      pkcs7.detached = true
+
+      body = OpenSSL::PKCS7.write_smime pkcs7, mdn_text
+
+      content_type = body[/^Content-Type: (.+?)$/m, 1]
+      # smime_signed.sub!(/\A.+?^(?=---)/m, '')
+
+      headers = {}
+      headers['Content-Type'] = content_type
+      # TODO: if MIME-Version header is actually needed, should extract it out of smime_signed.
+      headers['MIME-Version'] = '1.0'
+      headers['Message-ID'] = As2.generate_message_id(@server_info)
+      headers['AS2-From'] = @server_info.name
+      headers['AS2-To'] = as2_to
+      headers['AS2-Version'] = '1.0'
+      headers['Connection'] = 'close'
+
+      [headers, body]
     end
 
     def format_mdn_v1(mdn_text, mic_algorithm:, as2_to:)
@@ -136,6 +188,22 @@ module As2
       body += bare_pem_signature
       body += body_boundary + "--\r\n"
 
+      # TODO: not sure where the value of the Content-Type header's micalg parameter
+      #       should come from.
+      #
+      # From experimentation with openssl's write_smime, the 'micalg' is not derived
+      # from the signing certificate or from the mic alg used in the MDN body. So
+      # where does it come from?
+      #
+      # Using OpenSSL::PKCS7.write_smime, the output contains
+      #
+      #   Content-Type: multipart/signed; protocol="application/x-pkcs7-signature"; micalg="sha-256";
+      #
+      # even if the signing certificate uses a signature algorithm like sha384WithRSAEncryption
+      # or if MDN MIC is sha512 or anything else.
+      #
+      # https://www.rfc-editor.org/rfc/rfc1847#section-2.1 describes what micalg
+      # param is for, but it's not clear where the value should be determined.
       headers = {}
       headers['Content-Type'] = "multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=\"#{mic_algorithm}\"; boundary=\"#{header_boundary}\""
       headers['MIME-Version'] = '1.0'
