@@ -26,11 +26,9 @@ along.
      4. Use of Synchronous or Asynchronous Receipts: We do not support asynchronous
        delivery of MDNs.
      5. Security Formatting: We should be reasonably compliant here.
-     6. Hash Function, Message Digest Choices: We currently always use sha256. If a
-       partner asks for a different algorithm, we'll always use sha256 and partner
-       will see a MIC verification failure. AS2 RFC specifically prefers sha1 and
-       mentions md5. Mendelson AS2 server supports a number of other algorithms.
-       (sha256, sha512, etc)
+     6. Hash Function, Message Digest Choices: We currently always use sha256 for
+        signing. Since [#20](https://github.com/alexdean/as2/pull/20) we have supported
+        allowing partners to request which algorithm we use for MIC generation in MDNs.
   2. AS2 partners may agree to use separate certificates for data encryption and data signing.
      We do not support separate certificates for these purposes.
 
