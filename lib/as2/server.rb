@@ -102,7 +102,7 @@ module As2
       report.write msg_out
       mdn_text = msg_out.string
 
-      mdn_format = @partner.mdn_format || 'v0'
+      mdn_format = @partner&.mdn_format || 'v0'
       if mdn_format == 'v1'
         format_method = :format_mdn_v1
       else

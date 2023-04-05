@@ -22,6 +22,18 @@ describe As2::Server do
       @server = As2::Server.new(server_info: @server_info, partner: @partner)
     end
 
+    it 'does not fail if partner is unknown' do
+      server = As2::Server.new(server_info: @server_info, partner: nil)
+      env = {
+        'HTTP_AS2_FROM' => 'UNKNOWN'
+      }
+      _status, headers, body = server.send_mdn(env, 'micmicmic', 'sha256')
+
+      assert_match(/^multipart\/signed/, headers['Content-Type'])
+      assert_equal('BOB', headers['AS2-From'])
+      assert_equal('UNKNOWN', headers['AS2-To'])
+    end
+
     describe 'with mdn_format:v0' do
       before do
         @partner.mdn_format = 'v0'
