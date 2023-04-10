@@ -149,7 +149,7 @@ module As2
       document_payload << "Content-Transfer-Encoding: base64\r\n"
       document_payload << "Content-Disposition: attachment; filename=#{file_name}\r\n"
       document_payload << "\r\n"
-      document_payload << Base64.encode64(document_content)
+      document_payload << Base64.strict_encode64(document_content)
 
       signature = OpenSSL::PKCS7.sign(@server_info.certificate, @server_info.pkey, document_payload)
       signature.detached = true
