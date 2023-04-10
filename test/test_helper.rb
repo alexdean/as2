@@ -21,6 +21,8 @@ def build_partner(name, credentials:)
   out.name = name
   out.url = 'https://test.com/as2'
   out.certificate = public_key("test/certificates/#{credentials}.crt")
+  out.mdn_format = 'v0'
+  out.outbound_format = 'v0'
   out
 end
 

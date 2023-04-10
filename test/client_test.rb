@@ -97,6 +97,7 @@ describe As2::Client do
       @client = As2::Client.new(partner, server_info: server_info)
 
       # capture this out-of-band when i wrote the test.
+      # NOTE: this is the v0 outbound format
       @document_payload =  "Content-Type: text/plain\r\n"
       @document_payload << "Content-Transfer-Encoding: base64\r\n"
       @document_payload << "Content-Disposition: attachment; filename=test.txt\r\n"
