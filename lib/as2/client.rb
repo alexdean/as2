@@ -74,6 +74,15 @@ module As2
       signature = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, document_payload
       signature.detached = true
       container = OpenSSL::PKCS7.write_smime signature, document_payload
+
+      # fixup some content created by write_smime
+      # 1. use standard content type
+      container.gsub!(/application\/x-pkcs7-signature/, 'application/pkcs7-signature')
+      # 2. remove plaintext before first MIME boundary
+      container.gsub!(/This is an S\/MIME signed message\n\n/, '')
+      # 3. replace \n line endings with \r\n
+      container.gsub!(/(?<!\r)\n/, "\r\n")
+
       cipher = OpenSSL::Cipher::AES256.new(:CBC) # default, but we might have to make this configurable
       encrypted = OpenSSL::PKCS7.encrypt [@partner.certificate], container, cipher
 
