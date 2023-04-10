@@ -68,8 +68,8 @@ module As2
       req['Message-ID'] = outbound_message_id
 
       document_content = content || File.read(file_name)
-
       outbound_format = @partner&.outbound_format || 'v0'
+
       if outbound_format == 'v1'
         format_method = :format_body_v1
       else
@@ -131,6 +131,23 @@ module As2
       )
     end
 
+    # 'original' body formatting
+    #
+    # 1. uses OpenSSL::PKCS7.write_smime to build MIME body
+    #   * includes plain-text "this is an S/MIME message" note prior to initial
+    #     MIME boundary
+    # 2. uses non-standard application/x-pkcs7-* content types
+    # 3. MIME boundaries and signature have \n line endings
+    #
+    # this format is understood by Mendelson, OpenAS2, and several commercial
+    # products (GoAnywhere MFT). it is not understood by IBM Sterling B2B Integrator.
+    #
+    # @param [String] document_content the content to be transmitted
+    # @param [String] content_type the MIME type for document_content
+    # @param [String] file_name The filename to be transmitted to the partner
+    # @return [Array]
+    #   first item is the full document part of the transmission (including) MIME headers.
+    #   second item is the complete HTTP body.
     def format_body_v0(document_content, content_type:, file_name:)
       document_payload =  "Content-Type: #{content_type}\r\n"
       document_payload << "Content-Transfer-Encoding: base64\r\n"
@@ -144,6 +161,22 @@ module As2
       [document_payload, OpenSSL::PKCS7.write_smime(signature, document_payload)]
     end
 
+    # updated body formatting
+    #
+    # 1. no content before the first MIME boundary
+    # 2. uses standard application/pkcs7-* content types
+    # 3. MIME boundaries and signature have \r\n line endings
+    # 4. adds parameter smime-type=signed-data to the signature's Content-Type
+    #
+    # this format is understood by Mendelson, OpenAS2, and several commercial
+    # products (GoAnywhere MFT) and IBM Sterling B2B Integrator.
+    #
+    # @param [String] document_content the content to be transmitted
+    # @param [String] content_type the MIME type for document_content
+    # @param [String] file_name The filename to be transmitted to the partner
+    # @return [Array]
+    #   first item is the full document part of the transmission (including) MIME headers.
+    #   second item is the complete HTTP body.
     def format_body_v1(document_content, content_type:, file_name:)
       document_payload =  "Content-Type: #{content_type}\r\n"
       document_payload << "Content-Transfer-Encoding: base64\r\n"
