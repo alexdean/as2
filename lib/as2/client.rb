@@ -69,18 +69,25 @@ module As2
       document_payload << "Content-Transfer-Encoding: base64\r\n"
       document_payload << "Content-Disposition: attachment; filename=#{file_name}\r\n"
       document_payload << "\r\n"
-      document_payload << Base64.strict_encode64(document_content)
+      document_payload << Base64.encode64(document_content)
+      # TODO: wouldn't work for non-text content types
+      document_payload.gsub!(/(?<!\r)\n/, "\r\n")
 
       signature = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, document_payload
       signature.detached = true
-      container = OpenSSL::PKCS7.write_smime signature, document_payload
 
-      # fixup some content created by write_smime
-      # 1. use standard content type
+      # TODO:supplying document_payload as 2nd param may be unnecessary
+      container = OpenSSL::PKCS7.write_smime signature, document_payload
+      # fixup some content created by write_smime. trying to match mendelson output
+      # use standard content type
       container.gsub!(/application\/x-pkcs7-signature/, 'application/pkcs7-signature')
-      # 2. remove plaintext before first MIME boundary
+      # remove plaintext before first MIME boundary
       container.gsub!(/This is an S\/MIME signed message\n\n/, '')
-      # 3. replace \n line endings with \r\n
+      # remove from message MIME headers
+      container.gsub!(/MIME-Version: 1.0\n/, '')
+      # add smime-type=signed-data
+      container.gsub!(/Content-Type: application\/pkcs7-signature; name="smime.p7s"/, 'Content-Type: application/pkcs7-signature; name=smime.p7s; smime-type=signed-data')
+      # replace \n line endings with \r\n
       container.gsub!(/(?<!\r)\n/, "\r\n")
 
       cipher = OpenSSL::Cipher::AES256.new(:CBC) # default, but we might have to make this configurable
