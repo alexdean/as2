@@ -7,6 +7,7 @@ describe As2::Client::Result do
       signature_verification_error: nil,
       mic_matched: true,
       mid_matched: true,
+      request: nil,
       response: nil,
       body: nil,
       exception: nil,

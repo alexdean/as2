@@ -1,9 +1,10 @@
 module As2
   class Client
     class Result
-      attr_reader :response, :mic_matched, :mid_matched, :body, :disposition, :signature_verification_error, :exception, :outbound_message_id
+      attr_reader :request, :response, :mic_matched, :mid_matched, :body, :disposition, :signature_verification_error, :exception, :outbound_message_id
 
-      def initialize(response:, mic_matched:, mid_matched:, body:, disposition:, signature_verification_error:, exception:, outbound_message_id:)
+      def initialize(request:, response:, mic_matched:, mid_matched:, body:, disposition:, signature_verification_error:, exception:, outbound_message_id:)
+        @request = request
         @response = response
         @mic_matched = mic_matched
         @mid_matched = mid_matched
