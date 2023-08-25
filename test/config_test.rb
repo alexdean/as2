@@ -35,6 +35,23 @@ describe As2::Config do
         assert_equal @partner_config.certificate, cert_instance
       end
     end
+
+    describe '#outbound_format=' do
+      it 'accepts a valid format value' do
+        assert_nil @partner_config.outbound_format
+
+        @partner_config.outbound_format = 'v1'
+
+        assert_equal 'v1', @partner_config.outbound_format
+      end
+
+      it 'raises if given an invalid format value' do
+        error = assert_raises(ArgumentError) do
+                  @partner_config.outbound_format = 'invalid'
+                end
+        assert_equal "outbound_format 'invalid' must be one of [\"v0\", \"v1\"]", error.message
+      end
+    end
   end
 
   describe 'ServerInfo' do

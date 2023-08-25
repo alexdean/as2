@@ -4,6 +4,10 @@ module As2
   class Client
     attr_reader :partner, :server_info
 
+    def self.valid_outbound_formats
+      ['v0', 'v1']
+    end
+
     # @param [As2::Config::Partner,String] partner The partner to send a message to.
     #   If a string is given, it should be a partner name which has been registered
     #   via a call to #add_partner.
@@ -64,18 +68,22 @@ module As2
       req['Message-ID'] = outbound_message_id
 
       document_content = content || File.read(file_name)
+      outbound_format = @partner&.outbound_format || 'v0'
 
-      document_payload =  "Content-Type: #{content_type}\r\n"
-      document_payload << "Content-Transfer-Encoding: base64\r\n"
-      document_payload << "Content-Disposition: attachment; filename=#{file_name}\r\n"
-      document_payload << "\r\n"
-      document_payload << Base64.strict_encode64(document_content)
+      if outbound_format == 'v1'
+        format_method = :format_body_v1
+      else
+        format_method = :format_body_v0
+      end
 
-      signature = OpenSSL::PKCS7.sign @server_info.certificate, @server_info.pkey, document_payload
-      signature.detached = true
-      container = OpenSSL::PKCS7.write_smime signature, document_payload
+      document_payload, request_body = send(format_method,
+                                         document_content,
+                                         content_type: content_type,
+                                         file_name: file_name
+                                       )
+
       cipher = OpenSSL::Cipher::AES256.new(:CBC) # default, but we might have to make this configurable
-      encrypted = OpenSSL::PKCS7.encrypt [@partner.certificate], container, cipher
+      encrypted = OpenSSL::PKCS7.encrypt([@partner.certificate], request_body, cipher)
 
       # > HTTP can handle binary data and so there is no need to use the
       # > content transfer encodings of MIME
@@ -121,6 +129,109 @@ module As2
         exception: exception,
         outbound_message_id: outbound_message_id
       )
+    end
+
+    # 'original' body formatting
+    #
+    # 1. uses OpenSSL::PKCS7.write_smime to build MIME body
+    #   * includes plain-text "this is an S/MIME message" note prior to initial
+    #     MIME boundary
+    # 2. uses non-standard application/x-pkcs7-* content types
+    # 3. MIME boundaries and signature have \n line endings
+    #
+    # this format is understood by Mendelson, OpenAS2, and several commercial
+    # products (GoAnywhere MFT). it is not understood by IBM Sterling B2B Integrator.
+    #
+    # @param [String] document_content the content to be transmitted
+    # @param [String] content_type the MIME type for document_content
+    # @param [String] file_name The filename to be transmitted to the partner
+    # @return [Array]
+    #   first item is the full document part of the transmission (including) MIME headers.
+    #   second item is the complete HTTP body.
+    def format_body_v0(document_content, content_type:, file_name:)
+      document_payload =  "Content-Type: #{content_type}\r\n"
+      document_payload << "Content-Transfer-Encoding: base64\r\n"
+      document_payload << "Content-Disposition: attachment; filename=#{file_name}\r\n"
+      document_payload << "\r\n"
+      document_payload << Base64.strict_encode64(document_content)
+
+      signature = OpenSSL::PKCS7.sign(@server_info.certificate, @server_info.pkey, document_payload)
+      signature.detached = true
+
+      [document_payload, OpenSSL::PKCS7.write_smime(signature, document_payload)]
+    end
+
+    # updated body formatting
+    #
+    # 1. no content before the first MIME boundary
+    # 2. uses standard application/pkcs7-* content types
+    # 3. MIME boundaries and signature have \r\n line endings
+    # 4. adds parameter smime-type=signed-data to the signature's Content-Type
+    #
+    # this format is understood by Mendelson, OpenAS2, and several commercial
+    # products (GoAnywhere MFT) and IBM Sterling B2B Integrator.
+    #
+    # @param [String] document_content the content to be transmitted
+    # @param [String] content_type the MIME type for document_content
+    # @param [String] file_name The filename to be transmitted to the partner
+    # @return [Array]
+    #   first item is the full document part of the transmission (including) MIME headers.
+    #   second item is the complete HTTP body.
+    def format_body_v1(document_content, content_type:, file_name:)
+      document_payload =  "Content-Type: #{content_type}\r\n"
+      document_payload << "Content-Transfer-Encoding: base64\r\n"
+      document_payload << "Content-Disposition: attachment; filename=#{file_name}\r\n"
+      document_payload << "\r\n"
+      document_payload << Base64.strict_encode64(document_content)
+
+      signature = OpenSSL::PKCS7.sign(@server_info.certificate, @server_info.pkey, document_payload)
+      signature.detached = true
+
+      # PEM (base64-encoded) signature
+      bare_pem_signature = signature.to_pem
+      # strip off the '-----BEGIN PKCS7-----' / '-----END PKCS7-----' delimiters
+      bare_pem_signature.gsub!(/^-----[^\n]+\n/, '')
+      # and update to canonical \r\n line endings
+      bare_pem_signature.gsub!(/(?<!\r)\n/, "\r\n")
+
+      # this is a hack until i can determine a better way to get the micalg parameter
+      # from the pkcs7 signature generated above...
+      # https://stackoverflow.com/questions/75934159/how-does-openssl-smime-determine-micalg-parameter
+      #
+      # also tried approach outlined in https://stackoverflow.com/questions/53044007/how-to-use-sha1-digest-during-signing-with-opensslpkcs7-sign-when-creating-smi
+      # but the signature generated by that method lacks some essential data. verifying those
+      # signatures results in an openssl error "unable to find message digest"
+      smime_body = OpenSSL::PKCS7.write_smime(signature, document_payload)
+      micalg = smime_body[/^Content-Type: multipart\/signed.*micalg=\"([^"]+)/m, 1]
+
+      # generate a MIME part boundary
+      #
+      # > A good strategy is to choose a boundary that includes
+      # > a character sequence such as "=_" which can never appear in a
+      # > quoted-printable body.
+      #
+      # https://www.rfc-editor.org/rfc/rfc2045#page-21
+      boundary = "----=_#{SecureRandom.hex(16).upcase}"
+      body_boundary = "--#{boundary}"
+
+      # body's mime headers
+      body = "Content-Type: multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=#{micalg};  boundary=\"#{boundary}\"\r\n"
+      body += "\r\n"
+
+      # first body part: the document
+      body += body_boundary + "\r\n"
+      body += document_payload + "\r\n"
+
+      # second body part: the signature
+      body += body_boundary + "\r\n"
+      body += "Content-Type: application/pkcs7-signature; name=smime.p7s; smime-type=signed-data\r\n"
+      body += "Content-Transfer-Encoding: base64\r\n"
+      body += "Content-Disposition: attachment; filename=\"smime.p7s\"\r\n"
+      body += "\r\n"
+      body += bare_pem_signature
+      body += body_boundary + "--\r\n"
+
+      [document_payload, body]
     end
 
     def evaluate_mdn(mdn_body:, mdn_content_type:, original_message_id:, original_body:)
