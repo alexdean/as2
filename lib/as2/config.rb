@@ -12,7 +12,7 @@ module As2
       end
     end
 
-    class Partner < Struct.new :name, :url, :certificate, :mdn_format, :outbound_format
+    class Partner < Struct.new :name, :url, :certificate, :tls_verify_mode, :mdn_format, :outbound_format
       def url=(url)
         if url.kind_of? String
           self['url'] = URI.parse url
@@ -41,6 +41,17 @@ module As2
 
       def certificate=(certificate)
         self['certificate'] = As2::Config.build_certificate(certificate)
+      end
+
+      # if set, will be used for SSL transmissions.
+      # @see `verify_mode` in https://ruby-doc.org/stdlib-2.7.1/libdoc/net/http/rdoc/Net/HTTP.html
+      def tls_verify_mode=(mode)
+        valid_modes = [nil, OpenSSL::SSL::VERIFY_NONE, OpenSSL::SSL::VERIFY_PEER]
+        if !valid_modes.include?(mode)
+          raise ArgumentError, "tls_verify_mode '#{mode}' must be one of #{valid_modes.inspect}"
+        end
+
+        self['tls_verify_mode'] = mode
       end
     end
 

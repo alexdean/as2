@@ -56,8 +56,8 @@ module As2
 
       req = Net::HTTP::Post.new @partner.url.path
       req['AS2-Version'] = '1.0' # 1.1 includes compression support, which we dont implement.
-      req['AS2-From'] = as2_from
-      req['AS2-To'] = as2_to
+      req['AS2-From'] = As2.quoted_system_identifier(as2_from)
+      req['AS2-To'] = As2.quoted_system_identifier(as2_to)
       req['Subject'] = 'AS2 Transaction'
       req['Content-Type'] = 'application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m'
       req['Date'] = Time.now.rfc2822
@@ -99,9 +99,16 @@ module As2
         # note: to pass this traffic through a debugging proxy (like Charles)
         # set ENV['http_proxy'].
         http = Net::HTTP.new(@partner.url.host, @partner.url.port)
-        http.use_ssl = @partner.url.scheme == 'https'
+
+        use_ssl = @partner.url.scheme == 'https'
+        http.use_ssl = use_ssl
+        if use_ssl
+          if @partner.tls_verify_mode
+            http.verify_mode = @partner.tls_verify_mode
+          end
+        end
+
         # http.set_debug_output $stderr
-        # http.verify_mode = OpenSSL::SSL::VERIFY_NONE
 
         http.start do
           resp = http.request(req)
@@ -120,6 +127,7 @@ module As2
       end
 
       Result.new(
+        request: req,
         response: resp,
         mic_matched: mdn_report[:mic_matched],
         mid_matched: mdn_report[:mid_matched],

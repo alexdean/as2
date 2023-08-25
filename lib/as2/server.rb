@@ -69,8 +69,8 @@ module As2
 
       options = {
         'Reporting-UA' => @server_info.name,
-        'Original-Recipient' => "rfc822; #{@server_info.name}",
-        'Final-Recipient' => "rfc822; #{@server_info.name}",
+        'Original-Recipient' => "rfc822; #{As2.quoted_system_identifier(@server_info.name)}",
+        'Final-Recipient' => "rfc822; #{As2.quoted_system_identifier(@server_info.name)}",
         'Original-Message-ID' => env['HTTP_MESSAGE_ID']
       }
       if failed
@@ -148,8 +148,8 @@ module As2
       # TODO: if MIME-Version header is actually needed, should extract it out of smime_signed.
       headers['MIME-Version'] = '1.0'
       headers['Message-ID'] = As2.generate_message_id(@server_info)
-      headers['AS2-From'] = @server_info.name
-      headers['AS2-To'] = as2_to
+      headers['AS2-From'] = As2.quoted_system_identifier(@server_info.name)
+      headers['AS2-To'] = As2.quoted_system_identifier(as2_to)
       headers['AS2-Version'] = '1.0'
       headers['Connection'] = 'close'
 
@@ -191,8 +191,8 @@ module As2
       headers['Content-Type'] = "multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=\"#{micalg}\"; boundary=\"#{boundary}\""
       headers['MIME-Version'] = '1.0'
       headers['Message-ID'] = As2.generate_message_id(@server_info)
-      headers['AS2-From'] = @server_info.name
-      headers['AS2-To'] = as2_to
+      headers['AS2-From'] = As2.quoted_system_identifier(@server_info.name)
+      headers['AS2-To'] = As2.quoted_system_identifier(as2_to)
       headers['AS2-Version'] = '1.0'
       headers['Connection'] = 'close'
 

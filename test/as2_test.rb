@@ -40,4 +40,22 @@ describe As2 do
       assert_equal 'md5', As2.choose_mic_algorithm(header_value)
     end
   end
+
+  describe '.quoted_system_identifier' do
+    it 'returns the string unchanged if it does not contain a space' do
+      assert_equal 'A', As2.quoted_system_identifier('A')
+    end
+
+    it 'surrounds name with double-quotes if it contains a space' do
+      assert_equal '"A A"', As2.quoted_system_identifier('A A')
+    end
+
+    it 'returns non-string inputs unchanged' do
+      assert_nil As2.quoted_system_identifier(nil)
+      assert_equal 1, As2.quoted_system_identifier(1)
+      assert_equal true, As2.quoted_system_identifier(true)
+      assert_equal :symbol, As2.quoted_system_identifier(:symbol)
+      assert_equal({}, As2.quoted_system_identifier({}))
+    end
+  end
 end

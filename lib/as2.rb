@@ -35,4 +35,13 @@ module As2
     parsed = As2::Parser::DispositionNotificationOptions.parse(disposition_notification_options)
     Array(parsed['signed-receipt-micalg']).find { |m| As2::DigestSelector.valid?(m) }
   end
+
+  # surround an As2-From/As2-To value with double-quotes, if it contains a space.
+  def self.quoted_system_identifier(name)
+    if name.to_s.include?(' ')
+      "\"#{name}\""
+    else
+      name
+    end
+  end
 end
