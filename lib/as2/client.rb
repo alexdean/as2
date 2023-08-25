@@ -127,6 +127,7 @@ module As2
       end
 
       Result.new(
+        request: req,
         response: resp,
         mic_matched: mdn_report[:mic_matched],
         mid_matched: mdn_report[:mid_matched],
