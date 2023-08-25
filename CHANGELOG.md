@@ -1,4 +1,4 @@
-## Unreleased
+## 0.8.0, August 25, 2023
 
   * Quote AS2-From/AS2-To identifiers which contain spaces. [#30](https://github.com/alexdean/as2/pull/30)
   * Small improvements to aid integration testing with partners. [#31](https://github.com/alexdean/as2/pull/31)
