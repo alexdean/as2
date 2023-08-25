@@ -1,3 +1,8 @@
+## Unreleased
+
+  * Quote AS2-From/AS2-To identifiers which contain spaces. [#30](https://github.com/alexdean/as2/pull/30)
+  * Small improvements to aid integration testing with partners. [#31](https://github.com/alexdean/as2/pull/31)
+
 ## 0.7.0, August 25, 2023
 
 Two improvements in compatibility with IBM Sterling, which could not understand
