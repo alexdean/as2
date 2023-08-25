@@ -210,6 +210,40 @@ describe As2::Client do
   end
 
   describe '#send_file' do
+    # these may contain spaces, which must be quoted.
+    # https://datatracker.ietf.org/doc/html/rfc4130#section-6.2
+    it "quotes As2-From and As2-To headers when they contain spaces" do
+      alice_partner = build_partner('A L I C E', credentials: 'client')
+      alice_server_info = build_server_info('A L I C E', credentials: 'client')
+      bob_partner = build_partner('B O B', credentials: 'server')
+      bob_server_info = build_server_info('B O B', credentials: 'server')
+
+      alice_client = As2::Client.new(bob_partner, server_info: alice_server_info)
+
+      WebMock.stub_request(:post, bob_partner.url).to_return do |request|
+        assert_equal '"A L I C E"', request.headers['As2-From']
+        assert_equal '"B O B"', request.headers['As2-To']
+      end
+
+      alice_client.send_file('data.txt', content: File.read('test/fixtures/message.txt'))
+    end
+
+    it "does not quotes As2-From and As2-To headers when they contain no spaces" do
+      alice_partner = build_partner('ALICE', credentials: 'client')
+      alice_server_info = build_server_info('ALICE', credentials: 'client')
+      bob_partner = build_partner('BOB', credentials: 'server')
+      bob_server_info = build_server_info('BOB', credentials: 'server')
+
+      alice_client = As2::Client.new(bob_partner, server_info: alice_server_info)
+
+      WebMock.stub_request(:post, bob_partner.url).to_return do |request|
+        assert_equal 'ALICE', request.headers['As2-From']
+        assert_equal 'BOB', request.headers['As2-To']
+      end
+
+      alice_client.send_file('data.txt', content: File.read('test/fixtures/message.txt'))
+    end
+
     it 'considers a 2xx response code to be successful' do
       setup_integration_scenario(http_response_status: '202')
 

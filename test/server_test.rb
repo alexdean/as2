@@ -34,6 +34,22 @@ describe As2::Server do
       assert_equal('UNKNOWN', headers['AS2-To'])
     end
 
+    it 'quotes receipient fields if they contain spaces' do
+      partner = build_partner('A L I C E', credentials: 'client')
+      server_info = build_server_info('B O B', credentials: 'server')
+      server = As2::Server.new(server_info: server_info, partner: partner)
+
+      env = {
+        'HTTP_MESSAGE_ID' => '<message@server>',
+        'HTTP_AS2_FROM' => 'A L I C E'
+      }
+      _status, headers, body = server.send_mdn(env, 'micmicmic', 'sha256')
+
+      payload = body.first.strip
+      assert payload.include?('Original-Recipient: rfc822; "B O B"')
+      assert payload.include?('Final-Recipient: rfc822; "B O B"')
+    end
+
     describe 'with mdn_format:v0' do
       before do
         @partner.mdn_format = 'v0'
@@ -126,6 +142,22 @@ describe As2::Server do
         assert_equal 'ALICE', headers['AS2-To']
         assert_equal expected_plain_text.strip, plain_text.body.to_s.strip
         assert_equal expected_notification.strip, notification.body.to_s.strip
+      end
+
+      it "quotes AS2-From/AS2-To identifiers if the contain spaces" do
+        partner = build_partner('A L I C E', credentials: 'client')
+        partner.mdn_format = 'v0'
+        server_info = build_server_info('B O B', credentials: 'server')
+        server = As2::Server.new(server_info: server_info, partner: partner)
+
+        env = {
+          'HTTP_MESSAGE_ID' => '<message@server>',
+          'HTTP_AS2_FROM' => 'A L I C E'
+        }
+        _status, headers, body = server.send_mdn(env, 'micmicmic', 'sha256')
+
+        assert_equal '"A L I C E"', headers['AS2-To']
+        assert_equal '"B O B"', headers['AS2-From']
       end
     end
 
@@ -225,6 +257,22 @@ describe As2::Server do
         assert_equal 'ALICE', headers['AS2-To']
         assert_equal expected_plain_text.strip, plain_text.body.to_s.strip
         assert_equal expected_notification.strip, notification.body.to_s.strip
+      end
+
+      it "quotes AS2-From/AS2-To identifiers if the contain spaces" do
+        partner = build_partner('A L I C E', credentials: 'client')
+        partner.mdn_format = 'v1'
+        server_info = build_server_info('B O B', credentials: 'server')
+        server = As2::Server.new(server_info: server_info, partner: partner)
+
+        env = {
+          'HTTP_MESSAGE_ID' => '<message@server>',
+          'HTTP_AS2_FROM' => 'A L I C E'
+        }
+        _status, headers, body = server.send_mdn(env, 'micmicmic', 'sha256')
+
+        assert_equal '"A L I C E"', headers['AS2-To']
+        assert_equal '"B O B"', headers['AS2-From']
       end
     end
   end

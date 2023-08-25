@@ -56,8 +56,8 @@ module As2
 
       req = Net::HTTP::Post.new @partner.url.path
       req['AS2-Version'] = '1.0' # 1.1 includes compression support, which we dont implement.
-      req['AS2-From'] = as2_from
-      req['AS2-To'] = as2_to
+      req['AS2-From'] = As2.quoted_system_identifier(as2_from)
+      req['AS2-To'] = As2.quoted_system_identifier(as2_to)
       req['Subject'] = 'AS2 Transaction'
       req['Content-Type'] = 'application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m'
       req['Date'] = Time.now.rfc2822
