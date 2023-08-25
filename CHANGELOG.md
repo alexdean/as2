@@ -1,4 +1,4 @@
-## Unreleased (future 0.6.0)
+## 0.6.0, August 25, 2023
 
   * allow verification of signed MDNs which use `Content-Transfer-Encoding: binary`. [#22](https://github.com/alexdean/as2/pull/22)
   * Improve example server to make it more useful for local testing & development. [#17](https://github.com/alexdean/as2/pull/17)
