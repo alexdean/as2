@@ -99,9 +99,16 @@ module As2
         # note: to pass this traffic through a debugging proxy (like Charles)
         # set ENV['http_proxy'].
         http = Net::HTTP.new(@partner.url.host, @partner.url.port)
-        http.use_ssl = @partner.url.scheme == 'https'
+
+        use_ssl = @partner.url.scheme == 'https'
+        http.use_ssl = use_ssl
+        if use_ssl
+          if @partner.tls_verify_mode
+            http.verify_mode = @partner.tls_verify_mode
+          end
+        end
+
         # http.set_debug_output $stderr
-        # http.verify_mode = OpenSSL::SSL::VERIFY_NONE
 
         http.start do
           resp = http.request(req)

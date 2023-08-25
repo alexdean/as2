@@ -52,6 +52,27 @@ describe As2::Config do
         assert_equal "outbound_format 'invalid' must be one of [\"v0\", \"v1\"]", error.message
       end
     end
+
+    describe '#tls_verify_mode=' do
+      it 'accepts an OpenSSL::SSL::VERIFY_* constant' do
+        @partner_config.tls_verify_mode = OpenSSL::SSL::VERIFY_PEER
+        assert_equal OpenSSL::SSL::VERIFY_PEER, @partner_config.tls_verify_mode
+
+        @partner_config.tls_verify_mode = OpenSSL::SSL::VERIFY_NONE
+        assert_equal OpenSSL::SSL::VERIFY_NONE, @partner_config.tls_verify_mode
+      end
+
+      it 'accepts nil' do
+        @partner_config.tls_verify_mode = nil
+        assert_nil @partner_config.tls_verify_mode
+      end
+
+      it 'raises if given an invalid value' do
+        assert_raises(ArgumentError) do
+          @partner_config.tls_verify_mode = 'invalid'
+        end
+      end
+    end
   end
 
   describe 'ServerInfo' do
