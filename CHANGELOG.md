@@ -1,3 +1,10 @@
+## 0.9.0, August 28, 2023
+
+  * Bugfix for quoting AS2-From/AS2-To identifiers
+  * Add utility method for un-quoting identifiers
+
+both implemented in [#33](https://github.com/alexdean/as2/pull/33)
+
 ## 0.8.0, August 25, 2023
 
   * Quote AS2-From/AS2-To identifiers which contain spaces. [#30](https://github.com/alexdean/as2/pull/30)
