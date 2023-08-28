@@ -38,10 +38,20 @@ module As2
 
   # surround an As2-From/As2-To value with double-quotes, if it contains a space.
   def self.quoted_system_identifier(name)
-    if name.to_s.include?(' ')
+    if name.to_s.include?(' ') && !name.to_s.start_with?('"')
       "\"#{name}\""
     else
       name
     end
+  end
+
+  # remove double-quotes from an As2-From/As2-To value, if it contains any.
+  # this is useful in client code which may not automatically strip these quotes from a header value.
+  def self.unquoted_system_identifier(name)
+    if !name.is_a?(String)
+      return name
+    end
+
+    name.delete_prefix('"').delete_suffix('"').gsub('\"', '"')
   end
 end

@@ -57,5 +57,33 @@ describe As2 do
       assert_equal :symbol, As2.quoted_system_identifier(:symbol)
       assert_equal({}, As2.quoted_system_identifier({}))
     end
+
+    it 'does not re-quote a string which is already quoted' do
+      assert_equal '"A A"', As2.quoted_system_identifier('"A A"')
+    end
+  end
+
+  describe '.unquoted_system_identifier' do
+    it 'removes leading/trailing double-quotes if present' do
+      assert_equal 'AA', As2.unquoted_system_identifier('"AA"')
+      assert_equal 'A A', As2.unquoted_system_identifier('"A A"')
+    end
+
+    it 'does nothing to a string which do not contain leading/trailing double-quotes' do
+      assert_equal 'AA', As2.unquoted_system_identifier('AA')
+      assert_equal 'A A', As2.unquoted_system_identifier('A A')
+    end
+
+    it 'unescapes interior double-quotes' do
+      assert_equal 'A"A', As2.unquoted_system_identifier('"A\"A"')
+    end
+
+    it 'returns non-string inputs unchanged' do
+      assert_nil As2.unquoted_system_identifier(nil)
+      assert_equal 1, As2.unquoted_system_identifier(1)
+      assert_equal true, As2.unquoted_system_identifier(true)
+      assert_equal :symbol, As2.unquoted_system_identifier(:symbol)
+      assert_equal({}, As2.unquoted_system_identifier({}))
+    end
   end
 end
