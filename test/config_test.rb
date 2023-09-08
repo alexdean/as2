@@ -23,16 +23,51 @@ describe As2::Config do
       end
     end
 
-    describe '#certificate=' do
+    describe '#certificate= is used for both signing and encryption' do
       it 'accepts a file path to a certificate' do
         @partner_config.certificate = 'test/certificates/client.crt'
-        assert_equal @partner_config.certificate, OpenSSL::X509::Certificate.new(File.read('test/certificates/client.crt'))
+        expected = OpenSSL::X509::Certificate.new(File.read('test/certificates/client.crt'))
+        assert_equal @partner_config.signing_certificate, expected
+        assert_equal @partner_config.encryption_certificate, expected
       end
 
       it 'accepts an OpenSSL::X509::Certificate instance' do
         cert_instance = OpenSSL::X509::Certificate.new(File.read('test/certificates/client.crt'))
         @partner_config.certificate = cert_instance
-        assert_equal @partner_config.certificate, cert_instance
+        assert_equal @partner_config.signing_certificate, cert_instance
+        assert_equal @partner_config.encryption_certificate, cert_instance
+      end
+    end
+
+    describe '#signing_certificate=' do
+      it 'accepts a file path to a certificate' do
+        @partner_config.signing_certificate = 'test/certificates/client.crt'
+        expected = OpenSSL::X509::Certificate.new(File.read('test/certificates/client.crt'))
+        assert_equal @partner_config.signing_certificate, expected
+        assert_nil @partner_config.encryption_certificate
+      end
+
+      it 'accepts an OpenSSL::X509::Certificate instance' do
+        cert_instance = OpenSSL::X509::Certificate.new(File.read('test/certificates/client.crt'))
+        @partner_config.signing_certificate = cert_instance
+        assert_equal @partner_config.signing_certificate, cert_instance
+        assert_nil @partner_config.encryption_certificate
+      end
+    end
+
+    describe '#encryption_certificate=' do
+      it 'accepts a file path to a certificate' do
+        @partner_config.encryption_certificate = 'test/certificates/client.crt'
+        expected = OpenSSL::X509::Certificate.new(File.read('test/certificates/client.crt'))
+        assert_nil @partner_config.signing_certificate
+        assert_equal @partner_config.encryption_certificate, expected
+      end
+
+      it 'accepts an OpenSSL::X509::Certificate instance' do
+        cert_instance = OpenSSL::X509::Certificate.new(File.read('test/certificates/client.crt'))
+        @partner_config.encryption_certificate = cert_instance
+        assert_nil @partner_config.signing_certificate
+        assert_equal @partner_config.encryption_certificate, cert_instance
       end
     end
 

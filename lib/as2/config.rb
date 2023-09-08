@@ -12,7 +12,7 @@ module As2
       end
     end
 
-    class Partner < Struct.new :name, :url, :certificate, :tls_verify_mode, :mdn_format, :outbound_format
+    class Partner < Struct.new :name, :url, :encryption_certificate, :signing_certificate, :tls_verify_mode, :mdn_format, :outbound_format
       def url=(url)
         if url.kind_of? String
           self['url'] = URI.parse url
@@ -40,7 +40,17 @@ module As2
       end
 
       def certificate=(certificate)
-        self['certificate'] = As2::Config.build_certificate(certificate)
+        cert = As2::Config.build_certificate(certificate)
+        self['encryption_certificate'] = cert
+        self['signing_certificate'] = cert
+      end
+
+      def encryption_certificate=(certificate)
+        self['encryption_certificate'] = As2::Config.build_certificate(certificate)
+      end
+
+      def signing_certificate=(certificate)
+        self['signing_certificate'] = As2::Config.build_certificate(certificate)
       end
 
       # if set, will be used for SSL transmissions.
@@ -87,14 +97,18 @@ module As2
         unless partner.name
           raise 'Partner name is required'
         end
-        unless partner.certificate
-          raise 'Partner certificate is required'
+        unless partner.signing_certificate
+          raise 'Partner signing certificate is required'
+        end
+        unless partner.encryption_certificate
+          raise 'Partner encryption certificate is required'
         end
         unless partner.url
           raise 'Partner URL is required'
         end
         Config.partners[partner.name] = partner
-        Config.store.add_cert partner.certificate
+        Config.store.add_cert partner.signing_certificate
+        Config.store.add_cert partner.encryption_certificate
       end
     end
 
@@ -123,6 +137,7 @@ module As2
         @partners ||= {}
       end
 
+      # TODO: deprecate this.
       def store
         @store ||= OpenSSL::X509::Store.new
       end

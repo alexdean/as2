@@ -53,7 +53,7 @@ module As2
     #   * :valid [boolean] was the verification successful or not?
     #   * :error [String, nil] a verification error message.
     #                          will be empty when `valid` is true.
-    def self.verify(content:, signature_text:, certificate:)
+    def self.verify(content:, signature_text:, signing_certificate:)
       begin
         signature = OpenSSL::PKCS7.new(signature_text)
 
@@ -89,7 +89,7 @@ module As2
         # CA (in `store`, which is empty). alternately, we could instead remove
         # this flag, and add `partner_certificate` to `store`. but what's the point?
         # we'd only be verifying that `partner_certificate` is connected to `partner_certificate`.
-        valid = signature.verify([certificate], store, content, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN)
+        valid = signature.verify([signing_certificate], store, content, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN)
 
         # when `signature.verify` fails, signature.error_string will be populated.
         error = signature.error_string
@@ -121,7 +121,7 @@ module As2
       @decrypted_message ||= @pkcs7.decrypt @private_key, @public_certificate
     end
 
-    def valid_signature?(partner_certificate)
+    def valid_signature?(partner_signing_certificate)
       content_type = mail.header_fields.find { |h| h.name == 'Content-Type' }.content_type
       # TODO: substantial overlap between this code & the fallback/rescue code in
       # As2::Client#verify_mdn_signature
@@ -149,7 +149,7 @@ module As2
         result = self.class.verify(
                                     content: content,
                                     signature_text: signature_text,
-                                    certificate: partner_certificate
+                                    signing_certificate: partner_signing_certificate
                                   )
 
         output = result[:valid]
@@ -186,7 +186,7 @@ module As2
           retry_output = self.class.verify(
                                             content: content,
                                             signature_text: signature_text,
-                                            certificate: partner_certificate
+                                            signing_certificate: partner_signing_certificate
                                           )
 
           if retry_output[:valid]

@@ -40,7 +40,7 @@ module As2
       request = Rack::Request.new(env)
       message = Message.new(request.body.read, @server_info.pkey, @server_info.certificate)
 
-      unless message.valid_signature?(partner.certificate)
+      unless message.valid_signature?(partner.signing_certificate)
         if @signature_failure_handler
           @signature_failure_handler.call({
             env: env,

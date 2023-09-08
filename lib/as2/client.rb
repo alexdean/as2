@@ -83,7 +83,7 @@ module As2
                                        )
 
       cipher = OpenSSL::Cipher::AES256.new(:CBC) # default, but we might have to make this configurable
-      encrypted = OpenSSL::PKCS7.encrypt([@partner.certificate], request_body, cipher)
+      encrypted = OpenSSL::PKCS7.encrypt([@partner.encryption_certificate], request_body, cipher)
 
       # > HTTP can handle binary data and so there is no need to use the
       # > content transfer encodings of MIME
@@ -257,7 +257,7 @@ module As2
       if mdn_content_type.start_with?('multipart/signed')
         result = parse_signed_mdn(
                                    multipart_signed_message: response_content,
-                                   certificate: @partner.certificate
+                                   signing_certificate: @partner.signing_certificate
                                  )
         mdn_report = result[:mdn_report]
         report[:signature_verification_error] = result[:signature_verification_error]
@@ -314,7 +314,7 @@ module As2
     #   * :mdn_mime_body [Mail::Message] The 'inner' MDN body, with signature removed
     #   * :signature_verification_error [String] Any error which resulted when checking the
     #     signature. If this is empty it means the signature was valid.
-    def parse_signed_mdn(multipart_signed_message:, certificate:)
+    def parse_signed_mdn(multipart_signed_message:, signing_certificate:)
       smime = nil
 
       begin
@@ -347,7 +347,7 @@ module As2
         # based on As2::Message version
         # TODO: test cases based on valid/invalid responses. (response signed with wrong certificate, etc.)
         # See notes in As2::Message.verify for reasoning on flag usage
-        smime.verify [certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN
+        smime.verify [signing_certificate], OpenSSL::X509::Store.new, nil, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN
 
         signature_verification_error = smime.error_string
       else
@@ -383,7 +383,7 @@ module As2
         result = As2::Message.verify(
                    content: content,
                    signature_text: signature_text,
-                   certificate: @partner.certificate
+                   signing_certificate: signing_certificate
                  )
 
         signature_verification_error = result[:error]

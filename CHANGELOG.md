@@ -1,3 +1,16 @@
+## 0.10.0 Unreleased
+
+support for separate signing & encryption certificates for partners.
+
+BREAKING CHANGES:
+
+  * `As2::Config::Partner`
+    * Added `signing_certificate` and `encryption_certificate`
+    * Removed `certificate`.
+    * `certificate=` is still supported, and assigns the same certificate to both.
+  * `As2::Client#parse_signed_mdn`: requires `signing_certificate:` rather than `certificate:`.
+  * `As2::Message.verify`: requires `signing_certificate:` rather than `certificate:`.
+
 ## 0.9.0, August 28, 2023
 
   * Bugfix for quoting AS2-From/AS2-To identifiers

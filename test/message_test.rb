@@ -233,7 +233,7 @@ describe As2::Message do
       result = As2::Message.verify(
                  content: 'this is a message',
                  signature_text: '--invalid--',
-                 certificate: OpenSSL::X509::Certificate.new
+                 signing_certificate: OpenSSL::X509::Certificate.new
                )
 
       assert_equal false, result[:valid]
