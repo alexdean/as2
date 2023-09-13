@@ -316,7 +316,7 @@ describe As2::Client do
       #
       # in implementing BOB's side, we have to do some additional manual work because current As2::Server does
       # not actually support separate signing & encryption certs.
-      it "encrypts message using partner encryption_certificate" do
+      it "encrypts message using partner encryption_certificate and verifies MDN signature using partner signing_certificate" do
         # TODO: refactor setup_integration_scenario to accommodate multiple partner certificates
         # alice will send a file to bob, who uses separate encryption & signing certs.
         bob_partner = build_multi_cert_partner('BOB', credentials: 'partner')
