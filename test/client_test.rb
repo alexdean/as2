@@ -117,11 +117,11 @@ describe As2::Client do
     # client = As2::Client.new('OPENAS2')
     # as2_result = client.send_file('test.txt', content: 'This is a test message.', content_type: 'text/plain')
     # File.open('test/fixtures/binary_mdn.yml', 'wb') { |fp| fp.write(serialize_mdn(result)) }
-    #
+
     # def serialize_mdn(as2_result)
     #   # if set, response will be a Net::HTTPResponse
     #   response = as2_result&.response
-    #
+
     #   # headers are going to have string keys. so using string keys here also.
     #   # so we don't have to remember which level in the payload has which kind of key.
     #   YAML.dump({
@@ -207,6 +207,32 @@ describe As2::Client do
 
       assert_equal expected_body, result[:plain_text_body]
     end
+
+    describe 'when partner uses separate encryption and signing certificates' do
+      it 'verifies signature using partner signing_certificate' do
+        server_info = build_server_info('SERVER', credentials: 'server')
+        # NOTE: this MDN was signed with the private key of test/certificates/client.crt
+        mdn_data = YAML.load(File.read('test/fixtures/signed_mdn.yml'))
+        mdn_evaluation_params = {
+          mdn_body: mdn_data['body'],
+          mdn_content_type: mdn_data['headers']['Content-Type'],
+          original_message_id: '<SERVER-20220318-222842-b176dc1a-44fd-4f9c-ac61-813fbb0f579a@server.test-ruby-as2.com>',
+          original_body: @document_payload
+        }
+
+        correct_partner_config = As2::Config::Partner.new
+        correct_partner_config.signing_certificate = public_key("test/certificates/client.crt")
+        client = As2::Client.new(correct_partner_config, server_info: server_info)
+        result = client.evaluate_mdn(**mdn_evaluation_params)
+        assert_nil result[:signature_verification_error]
+
+        incorrect_partner_config = As2::Config::Partner.new
+        incorrect_partner_config.signing_certificate = public_key("test/certificates/server.crt")
+        client = As2::Client.new(incorrect_partner_config, server_info: server_info)
+        result = client.evaluate_mdn(**mdn_evaluation_params)
+        assert_equal "signer certificate not found", result[:signature_verification_error]
+      end
+    end
   end
 
   describe '#send_file' do
@@ -279,6 +305,60 @@ describe As2::Client do
         assert_equal RuntimeError, result.exception.class
         assert_equal expected_error_message, result.exception.message
         assert_nil result.success
+      end
+    end
+
+    describe 'when partner uses separate encryption and signing certificates' do
+      it "encrypts message using partner encryption_certificate" do
+        # this is the interesting part.
+        # alice will send a file to bob, who uses separate encryption & signing certs.
+        bob_partner = build_multi_cert_partner('BOB', credentials: 'partner')
+        refute_equal bob_partner.signing_certificate.to_pem, bob_partner.encryption_certificate.to_pem
+
+        # this is the same as setup_integration_scenario
+        # TODO: refactor setup_integration_scenario to accommodate multiple partner certificates
+        alice_partner = build_partner('ALICE', credentials: 'client')
+        alice_server_info = build_server_info('ALICE', credentials: 'client')
+        bob_server_info = build_server_info('BOB', credentials: 'server')
+
+        message_content = 'test message content'
+
+        server_was_called = false
+        bob_server = As2::Server.new(server_info: bob_server_info, partner: alice_partner)
+        WebMock.stub_request(:post, bob_partner.url).to_return do |request|
+          # LIMITATION: As2::Server doesn't currently support distinct signing and encryption certificates
+          #   so we have to do some of the work here.
+          #   we can sent TO a server which uses separate signing & encryption certs.
+          #   but we can't current BE a server which uses separate signing & encryption certs.
+
+          # prove that the message was encrypted using the expected partner_encryption.crt, from the bob_partner config
+          # that alice_client used to send the message.
+          bob_encryption_key = OpenSSL::PKey.read(File.read('test/certificates/partner_encryption.key'))
+          bob_encryption_cert = OpenSSL::X509::Certificate.new(File.read('test/certificates/partner_encryption.crt'))
+          message = As2::Message.new(request.body, bob_encryption_key, bob_encryption_cert)
+
+          bob_server = As2::Server.new(server_info: bob_server_info, partner: alice_partner)
+
+          # these would fail if we were unable to decrypt the message (using partner_encryption.key)
+          assert message.decrypted_message.include?(Base64.strict_encode64(message_content))
+          assert message.decrypted_message.include?("Content-Disposition: attachment; filename=data.txt")
+
+          # assert that the message was signed with alice's cert.
+          alice_signing_cert = OpenSSL::X509::Certificate.new(File.read('test/certificates/client.crt'))
+          assert message.valid_signature?(alice_signing_cert)
+
+          server_was_called = true
+          {
+            status: 500,
+            headers: {},
+            body: bob_server.send_mdn(env, )
+          }
+        end
+
+        alice_client = As2::Client.new(bob_partner, server_info: alice_server_info)
+        alice_client.send_file('data.txt', content: message_content)
+
+        assert server_was_called
       end
     end
 

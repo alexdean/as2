@@ -48,7 +48,7 @@ module As2
             verification_error: message.verification_error
           })
         else
-          raise "Could not verify signature"
+          raise "Could not verify signature. #{message.verification_error}"
         end
       end
 

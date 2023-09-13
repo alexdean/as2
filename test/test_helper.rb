@@ -26,6 +26,17 @@ def build_partner(name, credentials:, outbound_format: 'v0')
   out
 end
 
+def build_multi_cert_partner(name, credentials:, outbound_format: 'v0')
+  out = As2::Config::Partner.new
+  out.name = name
+  out.url = 'https://test.com/as2'
+  out.signing_certificate = public_key("test/certificates/#{credentials}_signing.crt")
+  out.encryption_certificate = public_key("test/certificates/#{credentials}_encryption.crt")
+  out.mdn_format = 'v0'
+  out.outbound_format = outbound_format
+  out
+end
+
 def build_server_info(name, credentials:)
   out = As2::Config::ServerInfo.new
   out.name = name

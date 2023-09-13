@@ -76,9 +76,9 @@ module As2
         #
         # https://www.openssl.org/docs/manmaster/man3/PKCS7_verify.html
         #
-        # we want this so we can be sure that the `partner_certificate` we supply
+        # we want this so we can be sure that the `signing_certificate` we supply
         # was actually used to sign the message. otherwise we could get a positive
-        # verification even if `partner_certificate` didn't sign the message
+        # verification even if `signing_certificate` didn't sign the message
         # we're checking.
         #
         # ## NOVERIFY
@@ -87,8 +87,8 @@ module As2
         #
         # ie: we won't attempt to connect signer (in the first param) to a root
         # CA (in `store`, which is empty). alternately, we could instead remove
-        # this flag, and add `partner_certificate` to `store`. but what's the point?
-        # we'd only be verifying that `partner_certificate` is connected to `partner_certificate`.
+        # this flag, and add `signing_certificate` to `store`. but what's the point?
+        # we'd only be verifying that `signing_certificate` is connected to `signing_certificate`.
         valid = signature.verify([signing_certificate], store, content, OpenSSL::PKCS7::NOVERIFY | OpenSSL::PKCS7::NOINTERN)
 
         # when `signature.verify` fails, signature.error_string will be populated.
