@@ -309,27 +309,41 @@ describe As2::Client do
     end
 
     describe 'when partner uses separate encryption and signing certificates' do
+      # in this scenario
+      #
+      #   * BOB represents our partner, who uses separate encryption & signing certs.
+      #   * ALICE represents us, who use a single cert for both encryption & signing.
+      #
+      # in implementing BOB's side, we have to do some additional manual work because current As2::Server does
+      # not actually support separate signing & encryption certs.
       it "encrypts message using partner encryption_certificate" do
-        # this is the interesting part.
+        # TODO: refactor setup_integration_scenario to accommodate multiple partner certificates
         # alice will send a file to bob, who uses separate encryption & signing certs.
         bob_partner = build_multi_cert_partner('BOB', credentials: 'partner')
         refute_equal bob_partner.signing_certificate.to_pem, bob_partner.encryption_certificate.to_pem
 
         # this is the same as setup_integration_scenario
-        # TODO: refactor setup_integration_scenario to accommodate multiple partner certificates
         alice_partner = build_partner('ALICE', credentials: 'client')
         alice_server_info = build_server_info('ALICE', credentials: 'client')
-        bob_server_info = build_server_info('BOB', credentials: 'server')
+
+        # this won't work for decryption, but we'll handle that manually in our WebMock setup below.
+        # reason for this is to ensure BOB signs the message using the signing cert from `bob_partner`
+        # which is what ALICE expects.
+        bob_server_info = As2::Config::ServerInfo.new
+        bob_server_info.name = "BOB"
+        bob_server_info.domain = 'test.com'
+        bob_server_info.url = 'https://test.com/as2'
+        bob_server_info.certificate = public_key("test/certificates/partner_signing.crt")
+        bob_server_info.pkey = private_key("test/certificates/partner_signing.key")
+
+        assert_equal bob_partner.signing_certificate.to_pem, bob_server_info.certificate.to_pem
+
+        bob_server = As2::Server.new(server_info: bob_server_info, partner: alice_partner)
 
         message_content = 'test message content'
-
-        server_was_called = false
-        bob_server = As2::Server.new(server_info: bob_server_info, partner: alice_partner)
         WebMock.stub_request(:post, bob_partner.url).to_return do |request|
-          # LIMITATION: As2::Server doesn't currently support distinct signing and encryption certificates
-          #   so we have to do some of the work here.
-          #   we can sent TO a server which uses separate signing & encryption certs.
-          #   but we can't current BE a server which uses separate signing & encryption certs.
+          headers = request.headers.transform_keys {|k| "HTTP_#{k.upcase}".gsub('-', '_') }
+          env = Rack::MockRequest.env_for(request.uri.path, headers.merge(input: request.body))
 
           # prove that the message was encrypted using the expected partner_encryption.crt, from the bob_partner config
           # that alice_client used to send the message.
@@ -339,26 +353,26 @@ describe As2::Client do
 
           bob_server = As2::Server.new(server_info: bob_server_info, partner: alice_partner)
 
-          # these would fail if we were unable to decrypt the message (using partner_encryption.key)
+          # these would fail if we were unable to decrypt the message
           assert message.decrypted_message.include?(Base64.strict_encode64(message_content))
           assert message.decrypted_message.include?("Content-Disposition: attachment; filename=data.txt")
 
           # assert that the message was signed with alice's cert.
-          alice_signing_cert = OpenSSL::X509::Certificate.new(File.read('test/certificates/client.crt'))
-          assert message.valid_signature?(alice_signing_cert)
+          assert message.valid_signature?(alice_server_info.certificate)
 
-          server_was_called = true
+          status, headers, body = bob_server.send_mdn(env, message.mic, message.mic_algorithm)
+
           {
-            status: 500,
-            headers: {},
-            body: bob_server.send_mdn(env, )
+            status: status,
+            headers: headers,
+            body: body.first
           }
         end
 
         alice_client = As2::Client.new(bob_partner, server_info: alice_server_info)
-        alice_client.send_file('data.txt', content: message_content)
-
-        assert server_was_called
+        result = alice_client.send_file('data.txt', content: message_content)
+        # verifies that alice could verify the signature of the MDN sent by bob.
+        assert result.success
       end
     end
 
