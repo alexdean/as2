@@ -1,6 +1,6 @@
-## 0.10.0 Unreleased
+## 0.10.0 September 13, 2023
 
-support for separate signing & encryption certificates for partners.
+support for separate signing & encryption certificates for partners. [#34](https://github.com/alexdean/as2/pull/34)
 
 BREAKING CHANGES:
 
