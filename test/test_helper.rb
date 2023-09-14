@@ -46,3 +46,34 @@ def build_server_info(name, credentials:)
   out.pkey = private_key("test/certificates/#{credentials}.key")
   out
 end
+
+# https://github.com/alexdean/as2/issues/26#issuecomment-1509278908
+def build_concise_asn1(item)
+  if item.respond_to?(:value)
+    item_value = item.value
+  else
+    item_value = item
+  end
+
+  if item.respond_to?(:each)
+    out_value = []
+    # OpenSSL::ASN1::Sequence responds to .each
+    item.each { |i| out_value << build_concise_asn1(i) }
+  elsif item_value.respond_to?(:each)
+    out_value = []
+    # OpenSSL::ASN1::ASN1Data does not respond to .each
+    # but it's .value may be an array so we should recurse
+    item_value.each { |i| out_value << build_concise_asn1(i) }
+  else
+    # when we hit a leaf node
+    if item.is_a?(OpenSSL::ASN1::Integer)
+      out_value = item_value.to_i
+    elsif item.is_a?(OpenSSL::ASN1::ObjectId)
+      out_value = {oid:item.oid, value:item_value}
+    else
+      out_value = item_value
+    end
+  end
+
+  out_value
+end

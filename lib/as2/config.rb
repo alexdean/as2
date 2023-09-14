@@ -12,7 +12,12 @@ module As2
       end
     end
 
-    class Partner < Struct.new :name, :url, :encryption_certificate, :signing_certificate, :tls_verify_mode, :mdn_format, :outbound_format
+    class Partner < Struct.new :name, :url, :encryption_certificate, :encryption_cipher, :signing_certificate, :tls_verify_mode, :mdn_format, :outbound_format
+      def initialize
+        # set default.
+        self.encryption_cipher = 'aes-256-cbc'
+      end
+
       def url=(url)
         if url.kind_of? String
           self['url'] = URI.parse url
@@ -47,6 +52,19 @@ module As2
 
       def encryption_certificate=(certificate)
         self['encryption_certificate'] = As2::Config.build_certificate(certificate)
+      end
+
+      def encryption_cipher=(cipher)
+        cipher_s = cipher.to_s
+        valid_ciphers = As2::Client.valid_encryption_ciphers
+        if !valid_ciphers.include?(cipher_s)
+          raise ArgumentError, "encryption_cipher '#{cipher_s}' must be one of #{valid_ciphers.inspect}"
+        end
+        self['encryption_cipher'] = cipher_s
+      end
+
+      def encryption_cipher_instance
+        OpenSSL::Cipher.new(encryption_cipher)
       end
 
       def signing_certificate=(certificate)

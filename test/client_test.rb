@@ -7,7 +7,8 @@ require 'test_helper'
 #   2. return a hash with data needed by individual tests
 def setup_integration_scenario(
   http_response_status: nil,
-  outbound_format: 'v0'
+  outbound_format: 'v0',
+  create_webmock_stub: true
 )
   # scenario: Alice is sending a message to Bob.
   @alice_partner = build_partner('ALICE', credentials: 'client', outbound_format: outbound_format)
@@ -20,18 +21,20 @@ def setup_integration_scenario(
   # individual tests will provide a different @bob_server if they want to assert on its behavior
   @bob_server = As2::Server.new(server_info: @bob_server_info, partner: @alice_partner)
 
-  WebMock.stub_request(:post, @bob_partner.url).to_return do |request|
-    # do all the HTTP things that rack would do during a real request
-    headers = request.headers.transform_keys {|k| "HTTP_#{k.upcase}".gsub('-', '_') }
-    env = Rack::MockRequest.env_for(request.uri.path, headers.merge(input: request.body))
+  if create_webmock_stub
+    WebMock.stub_request(:post, @bob_partner.url).to_return do |request|
+      # do all the HTTP things that rack would do during a real request
+      headers = request.headers.transform_keys {|k| "HTTP_#{k.upcase}".gsub('-', '_') }
+      env = Rack::MockRequest.env_for(request.uri.path, headers.merge(input: request.body))
 
-    # then hand off the content to @bob_server (which must be defined by the actual tests below)
-    status, headers, body = @bob_server.call(env)
-    {
-      status: http_response_status || status,
-      headers: headers,
-      body: body.first
-    }
+      # then hand off the content to @bob_server (which must be defined by the actual tests below)
+      status, headers, body = @bob_server.call(env)
+      {
+        status: http_response_status || status,
+        headers: headers,
+        body: body.first
+      }
+    end
   end
 end
 
@@ -43,6 +46,12 @@ describe As2::Client do
   describe '.valid_outbound_formats' do
     it 'describes which formats are valid' do
       assert_equal(['v0', 'v1'], As2::Client.valid_outbound_formats)
+    end
+  end
+
+  describe '.valid_encryption_cipers' do
+    it 'lists all valid ciphers' do
+      assert_equal OpenSSL::Cipher.ciphers, As2::Client.valid_encryption_ciphers
     end
   end
 
@@ -305,6 +314,68 @@ describe As2::Client do
         assert_equal RuntimeError, result.exception.class
         assert_equal expected_error_message, result.exception.message
         assert_nil result.success
+      end
+    end
+
+    # change this value, then intercept in webmock server and inspect encrypted message. asn1?
+
+    describe 'configuring encryption cipher' do
+      it 'uses AES-256 encryption cipher specified in partner config' do
+        request_was_made = false
+        setup_integration_scenario(create_webmock_stub: false)
+
+        WebMock.stub_request(:post, @bob_partner.url).to_return do |request|
+          request_was_made = true
+          pkcs7 = OpenSSL::PKCS7.new(request.body)
+          asn1 = OpenSSL::ASN1.decode(pkcs7)
+          concise_asn1 = build_concise_asn1(asn1)
+
+          assert_equal 'AES-256-CBC', concise_asn1[1][0][2][1][0][:value]
+        end
+
+        @alice_client.send_file('data.txt', content: 'content')
+        assert request_was_made
+      end
+
+      it 'uses AES-128 encryption cipher specified in partner config' do
+        request_was_made = false
+        setup_integration_scenario(create_webmock_stub: false)
+
+        @bob_partner.encryption_cipher = 'aes-128-cbc'
+
+        WebMock.stub_request(:post, @bob_partner.url).to_return do |request|
+          request_was_made = true
+          pkcs7 = OpenSSL::PKCS7.new(request.body)
+          asn1 = OpenSSL::ASN1.decode(pkcs7)
+          concise_asn1 = build_concise_asn1(asn1)
+
+          assert_equal 'AES-128-CBC', concise_asn1[1][0][2][1][0][:value]
+        end
+
+        @alice_client.send_file('data.txt', content: 'content')
+        assert request_was_made
+      end
+
+      it 'uses triple-des encryption cipher specified in partner config' do
+        request_was_made = false
+        setup_integration_scenario(create_webmock_stub: false)
+
+        @bob_partner.encryption_cipher = 'des3'
+
+        WebMock.stub_request(:post, @bob_partner.url).to_return do |request|
+          request_was_made = true
+          pkcs7 = OpenSSL::PKCS7.new(request.body)
+          asn1 = OpenSSL::ASN1.decode(pkcs7)
+          concise_asn1 = build_concise_asn1(asn1)
+
+          # des-ede3-cbc       Three key triple DES EDE in CBC mode
+          # des3               Alias for des-ede3-cbc
+          # https://www.openssl.org/docs/man1.0.2/man1/enc.html
+          assert_equal 'DES-EDE3-CBC', concise_asn1[1][0][2][1][0][:value]
+        end
+
+        @alice_client.send_file('data.txt', content: 'content')
+        assert request_was_made
       end
     end
 

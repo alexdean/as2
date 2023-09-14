@@ -8,6 +8,10 @@ module As2
       ['v0', 'v1']
     end
 
+    def self.valid_encryption_ciphers
+      OpenSSL::Cipher.ciphers
+    end
+
     # @param [As2::Config::Partner,String] partner The partner to send a message to.
     #   If a string is given, it should be a partner name which has been registered
     #   via a call to #add_partner.
@@ -44,6 +48,10 @@ module As2
     #     to a local file, whose contents will be sent to the partner.
     #   * If content parameter is specified, file_name is only used to tell the
     #     partner the original name of the file.
+    #
+    # TODO: refactor to separate "build an outbound message" from "send an outbound message"
+    # main benefit would be allowing the test suite to be more straightforward.
+    # (wouldn't need webmock just to verify what kind of message we built...)
     #
     # @param [String] file_name
     # @param [String] content
@@ -82,8 +90,11 @@ module As2
                                          file_name: file_name
                                        )
 
-      cipher = OpenSSL::Cipher::AES256.new(:CBC) # default, but we might have to make this configurable
-      encrypted = OpenSSL::PKCS7.encrypt([@partner.encryption_certificate], request_body, cipher)
+      encrypted = OpenSSL::PKCS7.encrypt(
+                    [@partner.encryption_certificate],
+                    request_body,
+                    @partner.encryption_cipher_instance
+                  )
 
       # > HTTP can handle binary data and so there is no need to use the
       # > content transfer encodings of MIME

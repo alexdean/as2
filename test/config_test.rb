@@ -11,6 +11,12 @@ describe As2::Config do
       @partner_config = As2::Config::Partner.new
     end
 
+    describe '#initialize' do
+      it 'sets a default encryption cipher' do
+        assert_equal 'aes-256-cbc', As2::Config::Partner.new.encryption_cipher
+      end
+    end
+
     describe '#url=' do
       it 'accepts a string' do
         @partner_config.url = 'http://test.com'
@@ -85,6 +91,29 @@ describe As2::Config do
                   @partner_config.outbound_format = 'invalid'
                 end
         assert_equal "outbound_format 'invalid' must be one of [\"v0\", \"v1\"]", error.message
+      end
+    end
+
+    describe '#encryption_cipher=' do
+      it 'accepts a valid cipher value' do
+        @partner_config.encryption_cipher = 'aes-128-cbc'
+        assert_equal 'aes-128-cbc', @partner_config.encryption_cipher
+      end
+
+      it 'rejects an invalid cipher value' do
+        assert_raises(ArgumentError) do
+          @partner_config.encryption_cipher = 'invalid'
+        end
+      end
+    end
+
+    describe '#encryption_cipher_instance' do
+      it 'returns an OpenSSL::Cipher instance' do
+        @partner_config.encryption_cipher = 'des3'
+        cipher = @partner_config.encryption_cipher_instance
+
+        assert_equal OpenSSL::Cipher, cipher.class
+        assert_equal "DES-EDE3-CBC", cipher.name
       end
     end
 
