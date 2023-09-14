@@ -1,3 +1,7 @@
+## 0.11.0 September 14, 2023
+
+  * Allow configuration of which encryption cipher to use when sending outbound messages. [#35](https://github.com/alexdean/as2/pull/35)
+
 ## 0.10.0 September 13, 2023
 
 support for separate signing & encryption certificates for partners. [#34](https://github.com/alexdean/as2/pull/34)
