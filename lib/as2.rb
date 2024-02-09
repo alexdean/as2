@@ -23,6 +23,52 @@ module As2
     "<#{server_info.name}-#{Time.now.strftime('%Y%m%d-%H%M%S')}-#{SecureRandom.uuid}@#{server_info.domain}>"
   end
 
+  def self.valid_base64_schemes
+    [
+      'rfc2045', # https://www.rfc-editor.org/rfc/rfc2045#section-6.8
+      'rfc4648'  # https://www.rfc-editor.org/rfc/rfc4648#section-4
+    ]
+  end
+
+  # create a base64 string from content, based on the given encoding scheme
+  #
+  # @param [String] content
+  # @param [String] scheme one of As2.valid_base64_schemes
+  # @return [String]
+  def self.base64_encode(content, scheme: 'rfc4648')
+    case scheme
+    when 'rfc2045'
+      # "This method complies with RFC 2045."
+      # https://ruby-doc.org/stdlib-3.0.4/libdoc/base64/rdoc/Base64.html#method-i-encode64
+      then Base64.encode64(content)
+    when 'rfc4648'
+      # "This method complies with RFC 4648."
+      # https://ruby-doc.org/stdlib-3.0.4/libdoc/base64/rdoc/Base64.html#method-i-strict_encode64
+      then Base64.strict_encode64(content)
+    else
+      raise "unsupported base64_scheme '#{@partner.base64_scheme}'"
+    end
+  end
+
+  # canonicalize all line endings in the given text.
+  #
+  #   "\n" becomes "\r\n"
+  # "\r\n" remains "\r\n"
+  #
+  #   Conversion to canonical form:
+  #   The entire body ... is converted to a universal canonical
+  #   form. ... For example, in the case of text/plain data, the text
+  #   must be converted to a supported character set and lines must
+  #   be delimited with CRLF delimiters in accordance with RFC 822.
+  #
+  # https://www.rfc-editor.org/rfc/rfc2049#page-9
+  #
+  # @param [String] content
+  # @return [String] content, but with all bare \n replaced by \r\n
+  def self.canonicalize_line_endings(content)
+    content.gsub(/(?<!\r)\n/, "\r\n")
+  end
+
   # Select which algorithm to use for calculating a MIC, based on preferences
   # stated by sender & our list of available algorithms.
   #

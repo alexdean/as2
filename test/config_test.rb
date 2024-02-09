@@ -17,6 +17,23 @@ describe As2::Config do
       end
     end
 
+    describe '#base64_scheme=' do
+      it 'accepts a valid scheme value' do
+        @partner_config.base64_scheme = 'rfc2045'
+        assert_equal 'rfc2045', @partner_config.base64_scheme
+
+        @partner_config.base64_scheme = 'rfc4648'
+        assert_equal 'rfc4648', @partner_config.base64_scheme
+      end
+
+      it 'raises if given an invalid format value' do
+        error = assert_raises(ArgumentError) do
+                  @partner_config.base64_scheme = 'invalid'
+                end
+        assert_equal "base64_scheme 'invalid' must be one of [\"rfc2045\", \"rfc4648\"]", error.message
+      end
+    end
+
     describe '#url=' do
       it 'accepts a string' do
         @partner_config.url = 'http://test.com'

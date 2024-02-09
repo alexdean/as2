@@ -172,7 +172,7 @@ module As2
       document_payload << "Content-Transfer-Encoding: base64\r\n"
       document_payload << "Content-Disposition: attachment; filename=#{file_name}\r\n"
       document_payload << "\r\n"
-      document_payload << Base64.strict_encode64(document_content)
+      document_payload << base64_encode(document_content)
 
       signature = OpenSSL::PKCS7.sign(@server_info.certificate, @server_info.pkey, document_payload)
       signature.detached = true
@@ -201,7 +201,7 @@ module As2
       document_payload << "Content-Transfer-Encoding: base64\r\n"
       document_payload << "Content-Disposition: attachment; filename=#{file_name}\r\n"
       document_payload << "\r\n"
-      document_payload << Base64.encode64(document_content)
+      document_payload << base64_encode(document_content)
 
       signature = OpenSSL::PKCS7.sign(@server_info.certificate, @server_info.pkey, document_payload)
       signature.detached = true
@@ -211,7 +211,7 @@ module As2
       # strip off the '-----BEGIN PKCS7-----' / '-----END PKCS7-----' delimiters
       bare_pem_signature.gsub!(/^-----[^\n]+\n/, '')
       # and update to canonical \r\n line endings
-      bare_pem_signature.gsub!(/(?<!\r)\n/, "\r\n")
+      bare_pem_signature = As2.canonicalize_line_endings(bare_pem_signature)
 
       # this is a hack until i can determine a better way to get the micalg parameter
       # from the pkcs7 signature generated above...
@@ -314,6 +314,11 @@ module As2
     end
 
     private
+
+    def base64_encode(content)
+      encoded = As2.base64_encode(content, scheme: @partner.base64_scheme)
+      As2.canonicalize_line_endings(encoded)
+    end
 
     # extract the MDN body from a multipart/signed wrapper & attempt to verify
     # the signature

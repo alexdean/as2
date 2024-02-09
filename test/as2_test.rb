@@ -16,6 +16,18 @@ describe As2 do
     end
   end
 
+  describe '.base64_encode' do
+    it 'can encode according to RFC-2045'
+    it 'can encode according to RFC-4648'
+    it 'raises if the given encoding scheme is not recognized'
+    it 'defaults to RFC-4648 for backwards-compatibility'
+  end
+
+  describe '.canonicalize_line_endings' do
+    it 'replaces \n with \r\n'
+    it 'does not alter existing \r\n sequences'
+  end
+
   describe '.choose_mic_algorithm' do
     it 'returns nil if no algorithm is found' do
       assert_nil As2.choose_mic_algorithm(nil)

@@ -165,7 +165,7 @@ module As2
       # strip off the '-----BEGIN PKCS7-----' / '-----END PKCS7-----' delimiters
       bare_pem_signature.gsub!(/^-----[^\n]+\n/, '')
       # and update to canonical \r\n line endings
-      bare_pem_signature.gsub!(/(?<!\r)\n/, "\r\n")
+      bare_pem_signature = As2.canonicalize_line_endings(bare_pem_signature)
 
       # this is a hack until i can determine a better way to get the micalg parameter
       # from the pkcs7 signature generated above...

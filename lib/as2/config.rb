@@ -12,10 +12,20 @@ module As2
       end
     end
 
-    class Partner < Struct.new :name, :url, :encryption_certificate, :encryption_cipher, :signing_certificate, :tls_verify_mode, :mdn_format, :outbound_format
+    class Partner < Struct.new :name, :url, :encryption_certificate, :encryption_cipher, :signing_certificate, :tls_verify_mode, :mdn_format, :outbound_format, :base64_scheme
       def initialize
         # set default.
         self.encryption_cipher = 'aes-256-cbc'
+        self.base64_scheme = 'rfc4648'
+      end
+
+      def base64_scheme=(scheme)
+        scheme_s = scheme.to_s
+        valid_schemes = As2.valid_base64_schemes
+        if !valid_schemes.include?(scheme_s)
+          raise ArgumentError, "base64_scheme '#{scheme_s}' must be one of #{valid_schemes.inspect}"
+        end
+        self['base64_scheme'] = scheme_s
       end
 
       def url=(url)
