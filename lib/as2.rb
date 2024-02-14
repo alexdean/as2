@@ -25,8 +25,8 @@ module As2
 
   def self.valid_base64_schemes
     [
-      'rfc2045', # https://www.rfc-editor.org/rfc/rfc2045#section-6.8
-      'rfc4648'  # https://www.rfc-editor.org/rfc/rfc4648#section-4
+      'rfc2045',
+      'rfc4648'
     ]
   end
 
@@ -36,17 +36,19 @@ module As2
   # @param [String] scheme one of As2.valid_base64_schemes
   # @return [String]
   def self.base64_encode(content, scheme: 'rfc4648')
-    case scheme
+    case scheme.to_s
     when 'rfc2045'
       # "This method complies with RFC 2045."
       # https://ruby-doc.org/stdlib-3.0.4/libdoc/base64/rdoc/Base64.html#method-i-encode64
+      # https://www.rfc-editor.org/rfc/rfc2045#section-6.8
       then Base64.encode64(content)
     when 'rfc4648'
       # "This method complies with RFC 4648."
       # https://ruby-doc.org/stdlib-3.0.4/libdoc/base64/rdoc/Base64.html#method-i-strict_encode64
+      # https://www.rfc-editor.org/rfc/rfc4648#section-4
       then Base64.strict_encode64(content)
     else
-      raise "unsupported base64_scheme '#{@partner.base64_scheme}'"
+      raise ArgumentError, "unsupported scheme '#{scheme}'. choose one of: #{valid_base64_schemes}"
     end
   end
 
