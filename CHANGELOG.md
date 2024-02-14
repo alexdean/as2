@@ -1,3 +1,8 @@
+## 0.12.0 February 14, 2024
+
+Allow configuration of which base64 encoding scheme to apply to outbound message bodies.
+Improves compatibility with some versions of MuleSoft. [#36](https://github.com/alexdean/as2/pull/36)
+
 ## 0.11.0 September 14, 2023
 
   * Allow configuration of which encryption cipher to use when sending outbound messages. [#35](https://github.com/alexdean/as2/pull/35)
