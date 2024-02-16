@@ -1,4 +1,4 @@
-## 0.12.0 February 14, 2024
+## 0.12.0 February 16, 2024
 
 Allow configuration of which base64 encoding scheme to apply to outbound message bodies.
 Improves compatibility with some versions of MuleSoft. [#36](https://github.com/alexdean/as2/pull/36)
