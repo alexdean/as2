@@ -21,12 +21,18 @@ As2.configure do |conf|
     partner.name = 'MENDELSON'
     partner.url = 'http://localhost:8080/as2/HttpReceiver'
     partner.certificate = 'test/certificates/client.crt'
+    partner.outbound_format = 'v1'
+    partner.mdn_format = 'v1'
+    partner.base64_scheme = 'rfc2045'
   end
 
   conf.add_partner do |partner|
     partner.name = 'OPENAS2'
     partner.url = 'http://localhost:4088'
     partner.certificate = 'test/certificates/client.crt'
+    partner.outbound_format = 'v1'
+    partner.mdn_format = 'v1'
+    partner.base64_scheme = 'rfc2045'
   end
 end
 
